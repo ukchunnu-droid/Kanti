@@ -312,6 +312,11 @@ module.exports = {
   listAllProducts: () => allProductsStmt.all().map((r) => ({ ...rowToProduct(r), orders: r.orders })),
   getProduct: (id) => { const r = productStmt.get(id); return r ? rowToProduct(r) : null; },
   productIdExists: (id) => !!productStmt.get(id),
+  // "face oil" and "Face Oil" are the same category: reuse the spelling that already exists.
+  canonicalCategory(name) {
+    const r = db.prepare('SELECT category FROM products WHERE lower(category) = lower(?) LIMIT 1').get(name);
+    return r ? r.category : name;
+  },
   createProduct(p) {
     const max = db.prepare('SELECT coalesce(max(sort_order), 0) AS m FROM products').get().m;
     insertProduct({ sort_order: max + 1, ...p });

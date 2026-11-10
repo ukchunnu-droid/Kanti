@@ -377,6 +377,9 @@ test('admin creates, edits, hides and shows a product; shop reflects it', async 
   assert.deepEqual(p.concern, ['breakouts'], 'unknown concerns dropped');
   assert.deepEqual(p.ings, ['Tulsi', 'Rose water']);
   assert.equal(p.cat, 'Mist');
+  const sameCat = (await admin('POST', '/api/admin/products', { ...NEW_PRODUCT, name: 'Case Test', category: 'face OIL' })).data.product;
+  const existing = db.listProducts().find((x) => x.id === 'p10').cat;
+  assert.equal(sameCat.cat, existing, 'category matched case-insensitively to the existing one');
   assert.equal((await admin('POST', '/api/admin/products', NEW_PRODUCT)).data.product.id, 'tulsi-face-mist-2', 'unique ids');
 
   let shop = (await (await fetch(base + '/api/products')).json()).products;

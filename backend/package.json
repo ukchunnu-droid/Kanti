@@ -7,10 +7,11 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test test/",
+    "test": "node --test test/api.test.js",
     "test-email": "node scripts/test-email.js",
     "backup": "node scripts/backup.js",
-    "restore": "node scripts/restore.js"
+    "restore": "node scripts/restore.js",
+    "test:e2e": "node --test --test-concurrency=1 test/e2e/storefront.e2e.js"
   },
   "engines": {
     "node": ">=20"
@@ -23,5 +24,8 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.14"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^23.11.1"
   }
 }

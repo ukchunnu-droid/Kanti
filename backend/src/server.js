@@ -55,14 +55,17 @@ app.use((req, res, next) => {
 });
 
 // ---------- Security headers ----------
-// The storefront uses inline scripts/handlers, hence 'unsafe-inline'; everything else is locked to self.
+// Scripts may only come from this site (no inline scripts or onclick handlers allowed).
+// Inline style="" attributes are still used for small per-item colours, hence style 'unsafe-inline'.
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",
+    "script-src 'self'",
+    "script-src-attr 'none'",
+    "object-src 'none'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob:",
@@ -360,6 +363,7 @@ app.get('/api/admin/products', requireAdmin, (_req, res) => res.json({ products:
 app.post('/api/admin/products', requireAdmin, (req, res) => {
   const { value, error } = v.productInput(req.body || {});
   if (error) return bad(res, error);
+  value.category = db.canonicalCategory(value.category);
   let id = v.slugify(value.name);
   for (let i = 2; db.productIdExists(id); i++) id = `${v.slugify(value.name).slice(0, 36)}-${i}`;
   const product = db.createProduct({ ...value, id });
@@ -371,6 +375,7 @@ app.patch('/api/admin/products/:id', requireAdmin, (req, res) => {
   if (!db.productIdExists(req.params.id)) return bad(res, 'Product not found.', 404);
   const { value, error } = v.productInput(req.body || {}, { partial: true });
   if (error) return bad(res, error);
+  if (value.category) value.category = db.canonicalCategory(value.category);
   const product = db.updateProduct(req.params.id, value);
   log.info('admin: product updated', { id: req.params.id, fields: Object.keys(value), by: req.userId });
   res.json({ product });

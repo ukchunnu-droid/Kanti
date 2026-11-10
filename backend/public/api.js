@@ -28,6 +28,8 @@ const API = {
   logout() { return this.req('/api/auth/logout', 'POST'); },
   forgot(email) { return this.req('/api/auth/forgot', 'POST', { email }); },
   reset(token, password) { return this.req('/api/auth/reset', 'POST', { token, password }); },
+  verifyEmail(token) { return this.req('/api/auth/verify', 'POST', { token }); },
+  resendVerification() { return this.req('/api/auth/verify/resend', 'POST'); },
 
   // profile
   me() { return this.req('/api/me'); },
@@ -52,4 +54,19 @@ const API = {
   createOrder(d) { return this.req('/api/orders', 'POST', d); },
   orders() { return this.req('/api/orders'); },
   order(no) { return this.req('/api/orders/' + encodeURIComponent(no)); },
+  cancelOrder(no) { return this.req('/api/orders/' + encodeURIComponent(no) + '/cancel', 'POST'); },
+
+  // admin (ADMIN_EMAIL account only)
+  admin: {
+    stats() { return API.req('/api/admin/stats'); },
+    products() { return API.req('/api/admin/products'); },
+    createProduct(d) { return API.req('/api/admin/products', 'POST', d); },
+    updateProduct(id, d) { return API.req('/api/admin/products/' + encodeURIComponent(id), 'PATCH', d); },
+    deleteProduct(id) { return API.req('/api/admin/products/' + encodeURIComponent(id), 'DELETE'); },
+    orders(status) { return API.req('/api/admin/orders' + (status ? '?status=' + encodeURIComponent(status) : '')); },
+    setOrderStatus(no, status, tracking_no) { return API.req('/api/admin/orders/' + encodeURIComponent(no), 'PATCH', { status, tracking_no }); },
+    emails() { return API.req('/api/admin/emails'); },
+    retryEmails() { return API.req('/api/admin/emails/retry', 'POST'); },
+    backup() { return API.req('/api/admin/backup', 'POST'); },
+  },
 };
