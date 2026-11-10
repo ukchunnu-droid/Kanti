@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kanti — Ayurvedic skincare that fits your nature</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- Design tokens ---------- */
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+
+  --paper:#FAF8F3;
+  --surface:#FFFFFF;
+  --surface-2:#F1EEE5;
+  --ink:#1C241F;
+  --muted:#6B746C;
+  --line:#E3DFD3;
+
+  --green:#20453B;       /* neem / brand */
+  --green-2:#3C6E5E;
+  --green-soft:#E7EFE9;
+  --gold:#B8862B;        /* turmeric accent */
+  --gold-soft:#F4E9CF;
+
+  --vata:#6E74AE;        /* dosha coding */
+  --pitta:#C2663A;
+  --kapha:#4C7A4E;
+
+  --radius:14px;
+  --radius-sm:9px;
+  --shadow:0 1px 2px rgba(28,36,31,.05), 0 8px 24px rgba(28,36,31,.06);
+  --maxw:1120px;
+  --font-body:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-display:"Fraunces",Georgia,"Times New Roman",serif;
+}
+:root:not([data-theme="light"]){
+  @media (prefers-color-scheme:dark){
+    --paper:#11150F; --surface:#181D16; --surface-2:#1F261D;
+    --ink:#ECEFE8; --muted:#9BA698; --line:#2C342A;
+    --green:#6FB49E; --green-2:#8CCBB4; --green-soft:#1E2A22;
+    --gold:#D9B255; --gold-soft:#2A2516;
+    --vata:#9AA0DC; --pitta:#E0906A; --kapha:#79AE7B;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#11150F; --surface:#181D16; --surface-2:#1F261D;
+  --ink:#ECEFE8; --muted:#9BA698; --line:#2C342A;
+  --green:#6FB49E; --green-2:#8CCBB4; --green-soft:#1E2A22;
+  --gold:#D9B255; --gold-soft:#2A2516;
+  --vata:#9AA0DC; --pitta:#E0906A; --kapha:#79AE7B;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.45);
+}
+
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 70px)}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--font-body);font-size:16px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--paper);z-index:60}
+img{max-width:100%}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+a{color:inherit}
+h1,h2,h3{font-family:var(--font-display);font-weight:500;line-height:1.08;margin:0}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+.hidden{display:none !important}
+
+/* ---------- Header ---------- */
+header{
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:50;
+  background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:saturate(1.3) blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.nav{display:flex;align-items:center;gap:28px;height:64px}
+.brand{font-family:var(--font-display);font-size:25px;font-weight:600;letter-spacing:-.01em;cursor:pointer;color:var(--ink)}
+.brand span{color:var(--gold)}
+.nav-links{display:flex;gap:22px;margin-left:8px}
+.nav-links button{color:var(--muted);font-size:15px;font-weight:500;padding:6px 0;border-bottom:2px solid transparent;transition:color .15s}
+.nav-links button:hover{color:var(--ink)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.cart-btn{position:relative;display:flex;align-items:center;gap:7px;font-weight:600;font-size:15px;padding:8px 14px;border-radius:999px;background:var(--surface-2)}
+.cart-count{min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--gold);color:#1C241F;font-size:12px;font-weight:700;display:grid;place-items:center}
+.icon-btn{width:38px;height:38px;border-radius:999px;display:grid;place-items:center;background:var(--surface-2);font-size:16px}
+
+/* ---------- Buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:15px;border-radius:999px;padding:13px 24px;transition:transform .12s,background .15s,opacity .15s}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--green);color:#FAF8F3}
+.btn-primary:hover{background:var(--green-2)}
+.btn-gold{background:var(--gold);color:#201A08}
+.btn-gold:hover{opacity:.9}
+.btn-ghost{background:transparent;border:1.5px solid var(--line);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--green);color:var(--green)}
+.btn-sm{padding:9px 16px;font-size:14px}
+.btn-block{display:flex;width:100%}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ---------- Hero ---------- */
+.hero{background:var(--green);color:#F4F1E8;position:relative;overflow:hidden}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;padding-top:76px;padding-bottom:76px}
+.hero-eyebrow{font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:#C9D8CE;margin-bottom:20px;opacity:0;animation:rise .7s .05s forwards}
+.hero h1{font-size:clamp(40px,6vw,66px);font-weight:400;letter-spacing:-.02em;color:#FBF8EF}
+.hero h1 em{font-style:italic;color:var(--gold)}
+.hero p{font-size:19px;line-height:1.5;color:#D6E0D7;max-width:46ch;margin:22px 0 32px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+.hero h1,.hero p,.hero-cta{opacity:0;animation:rise .7s forwards}
+.hero h1{animation-delay:.12s}.hero p{animation-delay:.22s}.hero-cta{animation-delay:.32s}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none !important}}
+/* hero visual: three dosha orbs */
+.doshas{display:flex;flex-direction:column;gap:14px;opacity:0;animation:rise .8s .4s forwards}
+.dosha-card{display:flex;align-items:center;gap:16px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:var(--radius);padding:16px 18px;backdrop-filter:blur(2px)}
+.dosha-dot{display:inline-block;width:40px;height:40px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
+.dosha-card b{font-family:var(--font-display);font-size:19px;font-weight:500;display:block}
+.dosha-card small{color:#C2D0C6;font-size:13.5px}
+
+/* ---------- Generic section ---------- */
+.section{padding:72px 0}
+.section-head{max-width:620px;margin-bottom:42px}
+.section-head .eyebrow{color:var(--gold);font-weight:700;font-size:14px;letter-spacing:.06em;margin-bottom:12px}
+.section-head h2{font-size:clamp(28px,4vw,40px);letter-spacing:-.015em}
+.section-head p{color:var(--muted);font-size:17px;margin-top:14px}
+
+/* how it works */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:26px;box-shadow:var(--shadow)}
+.step .num{font-family:var(--font-display);font-size:30px;color:var(--gold);line-height:1}
+.step h3{font-size:21px;margin:14px 0 8px}
+.step p{color:var(--muted);font-size:15px;margin:0}
+
+/* trust strip */
+.trust-strip{background:var(--green-soft);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.trust-strip .wrap{display:flex;flex-wrap:wrap;gap:14px 34px;padding:26px 24px;justify-content:center}
+.trust-item{display:flex;align-items:center;gap:9px;font-weight:600;font-size:15px;color:var(--green-2)}
+.trust-item i{font-style:normal}
+
+/* ---------- Quiz ---------- */
+.quiz{max-width:680px;margin:0 auto;padding:56px 24px 90px}
+.progress{height:6px;background:var(--surface-2);border-radius:999px;overflow:hidden;margin-bottom:10px}
+.progress>div{height:100%;background:var(--gold);width:0;transition:width .3s}
+.progress-label{font-size:13.5px;color:var(--muted);margin-bottom:34px;display:flex;justify-content:space-between}
+.q-title{font-size:clamp(25px,4vw,34px);letter-spacing:-.015em;margin-bottom:8px}
+.q-sub{color:var(--muted);margin-bottom:28px}
+.options{display:flex;flex-direction:column;gap:12px}
+.option{display:flex;align-items:flex-start;gap:14px;text-align:left;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:18px 20px;transition:border-color .15s,background .15s}
+.option:hover{border-color:var(--green-2)}
+.option.selected{border-color:var(--green);background:var(--green-soft)}
+.option .mark{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);flex:none;margin-top:1px;display:grid;place-items:center;transition:.15s}
+.option.selected .mark{border-color:var(--green);background:var(--green)}
+.option.selected .mark::after{content:"";width:8px;height:8px;border-radius:50%;background:#fff}
+.option b{font-weight:600;font-size:16.5px;display:block}
+.option small{color:var(--muted);font-size:14px}
+.quiz-nav{display:flex;justify-content:space-between;margin-top:30px}
+
+/* ---------- Results reveal animation ---------- */
+@keyframes revealUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.animate .rv{opacity:0;animation:revealUp .55s cubic-bezier(.2,.7,.3,1) forwards;animation-delay:var(--d,0s)}
+@media (prefers-reduced-motion:reduce){.animate .rv{opacity:1;animation:none}}
+
+/* ---------- Dosha flip cards (homepage) ---------- */
+.dflip{all:unset;box-sizing:border-box;cursor:pointer;display:block;width:100%;height:82px;perspective:900px}
+.dflip:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:var(--radius)}
+.dflip-inner{position:relative;width:100%;height:100%;transition:transform .55s cubic-bezier(.2,.7,.3,1);transform-style:preserve-3d}
+.dflip.flipped .dflip-inner{transform:rotateX(180deg)}
+.dface{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;align-items:center;gap:15px;padding:14px 18px;border-radius:var(--radius);background:rgba(8,22,17,.55);border:1px solid rgba(255,255,255,.22)}
+.dback{transform:rotateX(180deg);background:rgba(8,22,17,.72)}
+.dface .dtext{display:flex;flex-direction:column;min-width:0}
+.dface b{font-family:var(--font-display);font-size:18px;font-weight:600;color:#FFFFFF}
+.dface small{color:#EAF0EB;font-size:13px;line-height:1.35}
+.dhint{margin-left:auto;flex:none;font-size:11px;font-weight:700;color:#CBD9CE;display:flex;align-items:center;gap:4px}
+.dflip.flipped .dhint{color:var(--gold)}
+
+/* ---------- Ingredient tooltips ---------- */
+.has-tip{cursor:help;text-decoration:underline dotted;text-decoration-thickness:1.5px;text-underline-offset:2px}
+.has-tip:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.ingtip{position:fixed;z-index:200;display:none;background:#1C241F;color:#EDEFE9;padding:12px 14px;border-radius:11px;box-shadow:0 12px 34px rgba(0,0,0,.32);font-size:13px;line-height:1.42}
+.ingtip b{display:block;font-size:14px;color:#FBF8EF;margin-bottom:3px}
+.ingtip span{display:block;color:#CDD4CC}
+.ingtip em{display:block;margin-top:7px;font-style:normal;font-size:12px;font-weight:600;color:#E0B964}
+
+/* ---------- Routine checklist + streak ---------- */
+.streak{display:flex;align-items:center;gap:14px;background:var(--gold-soft);border:1px solid var(--gold);border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;flex-wrap:wrap}
+.streak-flame{font-size:26px;line-height:1;flex:none}
+.streak b{font-family:var(--font-display);font-size:19px;color:var(--ink);display:block;line-height:1.1}
+.streak small{color:var(--muted);font-size:13px}
+.streak-prog{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}
+.streak-prog span{font-size:13px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+.streak-prog span.c{color:var(--green-2);border-color:var(--green-2);background:var(--green-soft)}
+.routine-hint{font-size:13.5px;color:var(--muted);margin:-8px 0 16px}
+.step-no.toggle{padding:0;font:inherit;font-weight:700;border:1.5px solid var(--green-soft);cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.step-no.toggle:hover{border-color:var(--green-2);color:var(--green)}
+.step-no.toggle.on{background:var(--green);border-color:var(--green);color:#fff}
+.routine-step.done{opacity:.66}
+.routine-step.done .rs-body b{text-decoration:line-through;text-decoration-color:var(--muted)}
+
+/* ---------- Fun fact ---------- */
+.funfact{background:var(--gold-soft);border:1px solid var(--gold);border-radius:var(--radius);padding:20px 24px;margin-bottom:30px}
+.ff-badge{font-weight:700;color:var(--gold);font-size:13px;letter-spacing:.03em;margin-bottom:6px}
+.funfact p{margin:0;font-size:16px;line-height:1.5;color:var(--ink)}
+.funfact b{color:var(--green-2)}
+
+/* ---------- Results ---------- */
+.results{padding:48px 0 80px}
+.profile-card{background:var(--green);color:#F4F1E8;border-radius:20px;padding:36px;margin-bottom:40px;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center}
+.profile-card .eyebrow{color:#C9D8CE;letter-spacing:.12em;text-transform:uppercase;font-size:13px;margin-bottom:12px}
+.profile-card h2{font-size:clamp(28px,4.5vw,42px);color:#FBF8EF;font-weight:400}
+.profile-card h2 em{font-style:italic;color:var(--gold)}
+.profile-card p{color:#D4DED5;margin:14px 0 0;max-width:52ch}
+.dosha-badge{text-align:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:22px 26px}
+.dosha-badge .big{width:64px;height:64px;border-radius:50%;margin:0 auto 12px}
+.dosha-badge b{font-family:var(--font-display);font-size:22px;display:block}
+.dosha-badge small{color:#C2D0C6;font-size:13px}
+
+.guidance{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:46px}
+.guide-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
+.guide-card h3{font-size:19px;margin-bottom:14px;display:flex;align-items:center;gap:9px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:13.5px;font-weight:600;padding:7px 13px;border-radius:999px;background:var(--green-soft);color:var(--green-2)}
+.chip.warn{background:var(--gold-soft);color:var(--gold)}
+
+.routine-head{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:12px 0 22px}
+.routine-head h2{font-size:28px}
+.tod{display:flex;gap:8px}
+.tod button{font-weight:600;font-size:14px;padding:9px 18px;border-radius:999px;background:var(--surface-2);color:var(--muted)}
+.tod button.active{background:var(--ink);color:var(--paper)}
+.routine-step{display:flex;gap:18px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:12px;box-shadow:var(--shadow);align-items:center}
+.routine-step .step-no{width:34px;height:34px;border-radius:50%;background:var(--green-soft);color:var(--green-2);font-weight:700;display:grid;place-items:center;flex:none}
+.rs-thumb{width:62px;height:62px;border-radius:10px;flex:none;display:grid;place-items:center;font-size:26px}
+.rs-body{flex:1;min-width:0}
+.rs-body .slot{font-size:12.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--gold);font-weight:700}
+.rs-body b{font-size:17px;display:block;margin:2px 0}
+.rs-body small{color:var(--muted);font-size:14px}
+.rs-price{font-weight:700;margin-right:6px;white-space:nowrap}
+
+/* ---------- Shop ---------- */
+.shop{padding:44px 0 80px}
+.filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+.filters .label{width:100%;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:2px}
+.pill{font-weight:600;font-size:14px;padding:9px 16px;border-radius:999px;background:var(--surface-2);color:var(--muted);border:1.5px solid transparent;transition:.15s}
+.pill:hover{color:var(--ink)}
+.pill.active{background:var(--surface);border-color:var(--green);color:var(--green)}
+.dosha-filters{margin:16px 0 30px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;transition:transform .15s,box-shadow .15s}
+.card:hover{transform:translateY(-3px);box-shadow:0 10px 30px rgba(28,36,31,.12)}
+.card-img{height:150px;display:grid;place-items:center;font-size:52px;position:relative}
+.card-flag{position:absolute;top:10px;left:10px;font-size:11.5px;font-weight:700;background:var(--surface);color:var(--green-2);padding:4px 9px;border-radius:999px;box-shadow:var(--shadow)}
+.card-body{padding:16px 17px 18px;display:flex;flex-direction:column;flex:1}
+.card-body .cat{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.card-body h3{font-size:18px;margin:5px 0 4px}
+.card-body .benefit{font-size:14px;color:var(--muted);flex:1}
+.card-ings{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.ing-tag{font-size:12px;font-weight:600;color:var(--green-2);background:var(--green-soft);padding:4px 9px;border-radius:7px}
+.card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
+.card-foot .price{font-weight:700;font-size:17px}
+
+/* ---------- Product modal ---------- */
+.overlay{position:fixed;inset:0;background:rgba(18,23,16,.5);z-index:80;display:grid;place-items:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.open{opacity:1;pointer-events:auto}
+.modal{background:var(--surface);border-radius:20px;max-width:720px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);transform:translateY(10px);transition:transform .2s}
+.overlay.open .modal{transform:none}
+.modal-top{display:grid;grid-template-columns:200px 1fr;gap:26px;padding:28px}
+.modal-img{height:200px;border-radius:14px;display:grid;place-items:center;font-size:72px}
+.modal h2{font-size:27px;margin:6px 0 6px}
+.modal .cat{font-size:12.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.modal .desc{color:var(--muted);margin:10px 0 16px;font-size:15px}
+.modal-meta{border-top:1px solid var(--line);padding:24px 28px}
+.meta-row{display:grid;grid-template-columns:150px 1fr;gap:14px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.meta-row:last-child{border-bottom:none}
+.meta-row .k{color:var(--muted);font-weight:600}
+.safety-flag{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--green-2);background:var(--green-soft);padding:5px 11px;border-radius:999px;margin:3px 6px 3px 0}
+.modal-buy{display:flex;align-items:center;gap:16px;padding:0 28px 28px}
+.modal-buy .price{font-size:24px;font-weight:700;font-family:var(--font-display)}
+.modal-close{position:absolute;top:14px;right:14px;width:40px;height:40px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);font-size:18px;display:grid;place-items:center}
+
+/* ---------- Cart drawer ---------- */
+.drawer{position:fixed;top:0;right:0;height:100%;width:400px;max-width:92vw;background:var(--surface);z-index:90;box-shadow:-10px 0 40px rgba(0,0,0,.18);transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+.drawer.open{transform:none}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid var(--line)}
+.drawer-head h2{font-size:22px}
+.drawer-body{flex:1;overflow-y:auto;padding:12px 24px}
+.cart-line{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--line)}
+.cart-line .thumb{width:54px;height:54px;border-radius:9px;display:grid;place-items:center;font-size:24px;flex:none}
+.cart-line .cl-body{flex:1;min-width:0}
+.cart-line b{font-size:15px;display:block}
+.cart-line small{color:var(--muted);font-size:13px}
+.qty{display:inline-flex;align-items:center;gap:0;border:1.5px solid var(--line);border-radius:999px;margin-top:8px;overflow:hidden}
+.qty button{width:28px;height:28px;font-size:16px;color:var(--muted)}
+.qty button:hover{color:var(--ink)}
+.qty span{min-width:26px;text-align:center;font-weight:600;font-size:14px}
+.remove{background:none;color:var(--muted);font-size:13px;text-decoration:underline;margin-top:6px;display:block}
+.drawer-foot{border-top:1px solid var(--line);padding:22px 24px;padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+.subtotal{display:flex;justify-content:space-between;font-weight:700;font-size:18px;margin-bottom:6px}
+.drawer-foot .note{font-size:13px;color:var(--muted);margin-bottom:16px}
+.empty-state{text-align:center;color:var(--muted);padding:60px 20px}
+.empty-state .big{font-size:46px;margin-bottom:12px}
+
+/* ---------- Checkout ---------- */
+.checkout{max-width:860px;margin:0 auto;padding:48px 24px 90px}
+.checkout h1{font-size:clamp(28px,4vw,38px);margin-bottom:6px}
+.co-grid{display:grid;grid-template-columns:1.3fr .9fr;gap:34px;margin-top:30px;align-items:start}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+.field input{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:15px}
+.field input:focus{outline:none;border-color:var(--green)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.co-summary{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);position:sticky;top:90px}
+.co-summary h3{font-size:19px;margin-bottom:16px}
+.co-line{display:flex;justify-content:space-between;font-size:14.5px;padding:7px 0;color:var(--muted)}
+.co-total{display:flex;justify-content:space-between;font-weight:700;font-size:19px;border-top:1px solid var(--line);margin-top:10px;padding-top:14px}
+.demo-badge{font-size:13px;background:var(--gold-soft);color:var(--gold);font-weight:600;padding:10px 14px;border-radius:10px;margin:18px 0}
+
+/* ---------- Confirmation ---------- */
+.confirm{max-width:620px;margin:0 auto;text-align:center;padding:64px 24px 80px}
+.confirm .seal{width:84px;height:84px;border-radius:50%;background:var(--green-soft);color:var(--green-2);font-size:40px;display:grid;place-items:center;margin:0 auto 24px}
+.confirm h1{font-size:34px;margin-bottom:12px}
+.confirm p{color:var(--muted);font-size:17px}
+.confirm .sent-note{font-size:14.5px;margin-top:20px}
+.order-no{font-weight:700;color:var(--ink)}
+.confirm-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:26px}
+.demo-note{margin-top:24px;font-size:12.5px;color:var(--muted)}
+
+/* ---------- Email preview ---------- */
+.email-card{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow);margin:22px auto 0;max-width:520px}
+.email-badge{background:var(--gold-soft);color:var(--gold);font-weight:700;font-size:12.5px;padding:9px 16px}
+.email-head{padding:16px 18px;border-bottom:1px solid var(--line);font-size:13.5px;color:var(--ink);display:flex;flex-direction:column;gap:5px}
+.email-head .ek{display:inline-block;width:58px;color:var(--muted);font-weight:600}
+.email-body{padding:18px}
+.email-body p{font-size:14px;color:var(--ink);margin:0 0 12px}
+.email-line{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);padding:6px 0}
+.email-line.total{border-top:1px solid var(--line);margin-top:6px;padding-top:10px;font-weight:700;color:var(--ink)}
+.email-ship{margin-top:14px !important;font-size:13px !important;color:var(--muted) !important}
+.email-foot{margin-top:16px !important;font-size:13.5px !important;color:var(--muted) !important}
+
+/* ---------- Account / profile ---------- */
+.account{padding:44px 0 70px}
+.acct-empty{display:flex;gap:12px;flex-wrap:wrap}
+.acct-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:18px}
+.acct-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+.acct-card.wide{margin-top:0}
+.acct-card h3{font-size:18px;margin-bottom:14px}
+.acct-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.acct-card-head h3{margin:0}
+.acct-row{display:flex;justify-content:space-between;gap:14px;font-size:14.5px;padding:8px 0;border-bottom:1px solid var(--line)}
+.acct-row:last-child{border-bottom:none}
+.acct-row .ak{color:var(--muted);font-weight:600}
+.addr{font-size:14.5px;line-height:1.6;color:var(--ink)}
+.muted-p{color:var(--muted);font-size:14px}
+.link-btn{background:none;color:var(--green-2);font-weight:600;font-size:14px;text-decoration:underline;padding:0}
+.link-btn:hover{color:var(--green)}
+.skin-badges{display:flex;flex-wrap:wrap;gap:8px}
+.skin-pill{font-size:13.5px;font-weight:600;padding:7px 13px;border-radius:999px;background:var(--green-soft);color:var(--green-2)}
+.skin-pill.dosha{background:transparent;border:1.5px solid var(--dc);color:var(--dc)}
+.order{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:12px}
+.order:last-child{margin-bottom:0}
+.order-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.order-top b{font-size:15.5px;display:block}
+.order-top small{color:var(--muted);font-size:13px}
+.order-total{font-weight:700;font-size:16px}
+.order-items{display:flex;flex-wrap:wrap;gap:8px 16px;margin:12px 0}
+.oi{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;color:var(--ink)}
+.oi-emoji{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;font-size:15px}
+
+/* ---------- Share result modal ---------- */
+.share-wrap{padding:26px 24px 28px;text-align:center}
+.share-wrap h2{font-size:24px;margin-bottom:16px}
+.share-img{width:300px;max-width:78vw;border-radius:14px;box-shadow:var(--shadow)}
+.share-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.share-note{color:var(--muted);font-size:13px;margin-top:14px}
+
+/* ---------- Footer ---------- */
+footer{background:var(--green);color:#CDD9CF;padding:44px 0;margin-top:40px}
+footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+footer .brand{color:#FBF8EF}
+footer small{font-size:13.5px;opacity:.8}
+
+/* ---------- Toast ---------- */
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--paper);padding:13px 22px;border-radius:999px;font-weight:600;font-size:14.5px;z-index:120;opacity:0;pointer-events:none;transition:.25s;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.toast.show{opacity:1;transform:translateX(-50%)}
+
+/* ---------- Responsive ---------- */
+@media (max-width:860px){
+  .hero .wrap{grid-template-columns:1fr;gap:34px;padding-top:54px;padding-bottom:54px}
+  .steps{grid-template-columns:1fr}
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .guidance{grid-template-columns:1fr}
+  .profile-card{grid-template-columns:1fr}
+  .co-grid{grid-template-columns:1fr}
+  .co-summary{position:static}
+  .acct-grid{grid-template-columns:1fr}
+  .modal-top{grid-template-columns:1fr}
+  .modal-img{height:150px}
+  .nav-links{display:none}
+}
+@media (max-width:540px){
+  .wrap{padding:0 16px}
+  .grid{grid-template-columns:1fr 1fr;gap:14px}
+  .card-img{height:120px;font-size:42px}
+  .hero p{font-size:17px}
+  .field-row{grid-template-columns:1fr}
+  .routine-step{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="brand" onclick="go('home')">Kan<span>ti</span></div>
+    <nav class="nav-links">
+      <button onclick="go('home')">Home</button>
+      <button onclick="go('quiz')">Find your routine</button>
+      <button onclick="go('shop')">Shop</button>
+      <button onclick="go('account')">Account</button>
+    </nav>
+    <div class="nav-right">
+      <button class="icon-btn" onclick="toggleTheme()" title="Toggle light/dark" id="themeBtn">☾</button>
+      <button class="icon-btn" onclick="go('account')" title="My account" aria-label="My account">👤</button>
+      <button class="cart-btn" onclick="openCart()">
+        <span>Bag</span>
+        <span class="cart-count" id="cartCount">0</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<!-- Cart drawer -->
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <h2>Your bag</h2>
+    <button class="icon-btn" onclick="closeCart()">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot" id="drawerFoot"></div>
+</div>
+
+<!-- Product modal -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal" style="position:relative"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   KANTI — Ayurvedic skincare prototype
+   Single-file demo. All data is mock / for demonstration.
+   ========================================================= */
+
+/* ---------- Product catalogue ---------- */
+const PRODUCTS = [
+  {id:'p1', name:'Neem & Tulsi Gel Cleanser', cat:'Cleanser', slot:'Cleanse', tod:'both',
+   price:18, emoji:'🌿', bg:'#E7EFE9',
+   skin:['oily','combination'], dosha:['pitta','kapha'],
+   ings:['Neem','Tulsi','Aloe'], benefit:'Lifts excess oil without stripping — calms congestion.',
+   desc:'A lightweight gel that clears daily buildup and soothes reactive, blemish-prone skin using cold-pressed neem and holy basil.',
+   sourcing:'Neem leaf sourced from certified organic farms in Tamil Nadu.',
+   safety:['Fragrance-free','Patch test advised']},
+
+  {id:'p2', name:'Rose & Aloe Cream Cleanser', cat:'Cleanser', slot:'Cleanse', tod:'both',
+   price:19, emoji:'🌸', bg:'#F4E9CF',
+   skin:['normal','dry','combination'], dosha:['vata','pitta'],
+   ings:['Rose','Aloe','Almond oil'], benefit:'Gently removes the day while keeping skin soft and hydrated.',
+   desc:'A milky cleanser for skin that tightens easily. Rose water and aloe cleanse without disturbing the moisture barrier.',
+   sourcing:'Damask rose distilled in Kannauj, the historic home of Indian attar.',
+   safety:['Pregnancy-safe','Fragrance from rose only']},
+
+  {id:'p3', name:'Rosewater Balancing Toner', cat:'Toner', slot:'Tone', tod:'both',
+   price:16, emoji:'💧', bg:'#F4E9CF',
+   skin:['oily','normal','combination','dry'], dosha:['vata','pitta','kapha'],
+   ings:['Rose','Witch hazel','Glycerin'], benefit:'Rebalances and preps skin so the next step absorbs better.',
+   desc:'A refreshing mist that restores pH and adds a first layer of hydration after cleansing.',
+   sourcing:'Steam-distilled rose water, no added synthetic fragrance.',
+   safety:['Pregnancy-safe','Alcohol-free']},
+
+  {id:'p4', name:'Neem Clarifying Serum', cat:'Serum', slot:'Treat', tod:'both',
+   price:28, emoji:'🧴', bg:'#E7EFE9',
+   skin:['oily','combination'], dosha:['pitta','kapha'], concern:['breakouts'],
+   ings:['Neem','Turmeric','Niacinamide'], benefit:'Targets breakouts and visibly evens oily, congested skin.',
+   desc:'A daily treatment serum that pairs traditional neem and turmeric with niacinamide to reduce blemishes and marks.',
+   sourcing:'Wild-harvested turmeric, lab-tested for curcumin potency.',
+   safety:['Patch test advised','Non-comedogenic']},
+
+  {id:'p5', name:'Brahmi Hydro-Repair Serum', cat:'Serum', slot:'Treat', tod:'both',
+   price:30, emoji:'🧪', bg:'#E7EFE9',
+   skin:['dry','normal','combination'], dosha:['vata'], concern:['dryness','dullness'],
+   ings:['Brahmi','Hyaluronic acid','Amla'], benefit:'Floods dehydrated skin with lasting moisture and glow.',
+   desc:'A weightless serum for tight, dull skin. Brahmi and amla support the barrier while hyaluronic acid holds water in.',
+   sourcing:'Brahmi grown in the Western Ghats; vegan hyaluronic acid.',
+   safety:['Pregnancy-safe','Fragrance-free']},
+
+  {id:'p6', name:'Triphala Night Repair Serum', cat:'Serum', slot:'Treat', tod:'PM',
+   price:32, emoji:'🌙', bg:'#F4E9CF',
+   skin:['normal','combination'], dosha:['pitta','kapha'], concern:['fine lines','dullness'],
+   ings:['Triphala','Vitamin C','Bakuchiol'], benefit:'Smooths texture and softens early fine lines overnight.',
+   desc:'A gentle retinol-alternative serum. Bakuchiol and triphala antioxidants renew skin while you sleep.',
+   sourcing:'Triphala blended from three organically grown fruits.',
+   safety:['Pregnancy-safe','Use PM only']},
+
+  {id:'p7', name:'Aloe Daily Gel Moisturiser', cat:'Moisturiser', slot:'Moisturise', tod:'both',
+   price:22, emoji:'🪴', bg:'#E7EFE9',
+   skin:['oily','combination'], dosha:['pitta','kapha'], concern:['breakouts'],
+   ings:['Aloe','Green tea','Cucumber'], benefit:'Light, fast-absorbing hydration that never feels greasy.',
+   desc:'An oil-free gel-cream that hydrates oily and combination skin without clogging pores.',
+   sourcing:'Cold-stabilised aloe, 92% of formula from botanical sources.',
+   safety:['Non-comedogenic','Fragrance-free']},
+
+  {id:'p8', name:'Almond & Shatavari Nourish Cream', cat:'Moisturiser', slot:'Moisturise', tod:'both',
+   price:26, emoji:'🥣', bg:'#F4E9CF',
+   skin:['dry','normal'], dosha:['vata'], concern:['dryness'],
+   ings:['Sweet almond','Shatavari','Shea'], benefit:'Rich, cushioning moisture for skin that drinks it up.',
+   desc:'A deeply nourishing cream for dry, depleted skin. Shatavari and almond restore softness and comfort.',
+   sourcing:'Cold-pressed almond oil; fair-trade shea butter.',
+   safety:['Pregnancy-safe','Rich texture']},
+
+  {id:'p9', name:'Sandalwood Calming Cream', cat:'Moisturiser', slot:'Moisturise', tod:'both',
+   price:27, emoji:'🪵', bg:'#F4E9CF',
+   skin:['normal','combination','dry'], dosha:['pitta'], concern:['sensitivity'],
+   ings:['Sandalwood','Oat','Liquorice'], benefit:'Calms redness and sensitivity while hydrating.',
+   desc:'A soothing moisturiser for warm, reactive skin. Sandalwood and liquorice reduce visible redness.',
+   sourcing:'Sustainably farmed sandalwood (no wild harvesting).',
+   safety:['Pregnancy-safe','For sensitive skin']},
+
+  {id:'p10', name:'Kumkumadi Glow Face Oil', cat:'Face oil', slot:'Treat', tod:'PM',
+   price:38, emoji:'✨', bg:'#F4E9CF',
+   skin:['dry','normal'], dosha:['vata'], concern:['dullness','fine lines'],
+   ings:['Saffron','Sandalwood','Sesame'], benefit:'A classic radiance oil for a lit-from-within glow.',
+   desc:'The legendary kumkumadi formula — saffron-infused oils that brighten tone and soften the look of lines overnight.',
+   sourcing:'Kashmiri saffron, GI-tagged and purity-tested.',
+   safety:['Patch test advised','Use PM only']},
+
+  {id:'p11', name:'Turmeric Bright Clay Mask', cat:'Mask', slot:'Weekly', tod:'weekly',
+   price:24, emoji:'🟡', bg:'#F4E9CF',
+   skin:['oily','combination'], dosha:['pitta','kapha'], concern:['breakouts','dullness'],
+   ings:['Turmeric','Multani mitti','Honey'], benefit:'Draws out congestion and leaves skin clear and bright.',
+   desc:'A 2x-weekly clay mask with turmeric and fuller’s earth to detox pores and brighten dull, oily skin.',
+   sourcing:'Rajasthani multani mitti (fuller’s earth), unrefined.',
+   safety:['Use 1–2x weekly','May lightly tint — rinse well']},
+
+  {id:'p12', name:'Rose & Honey Hydra Mask', cat:'Mask', slot:'Weekly', tod:'weekly',
+   price:24, emoji:'🍯', bg:'#F4E9CF',
+   skin:['dry','normal'], dosha:['vata','pitta'], concern:['dryness','dullness'],
+   ings:['Rose','Honey','Hyaluronic'], benefit:'A weekly moisture surge for tight, thirsty skin.',
+   desc:'A creamy leave-on mask that replenishes dry skin and restores a soft, dewy finish.',
+   sourcing:'Raw forest honey from co-operative beekeepers.',
+   safety:['Pregnancy-safe','Use 1–2x weekly']},
+
+  {id:'p13', name:'Mineral Day Shield SPF 30', cat:'Sunscreen', slot:'Protect', tod:'AM',
+   price:25, emoji:'☀️', bg:'#E7EFE9',
+   skin:['oily','normal','combination','dry'], dosha:['vata','pitta','kapha'],
+   ings:['Zinc oxide','Aloe','Green tea'], benefit:'Non-greasy mineral protection — the step that matters most.',
+   desc:'A lightweight mineral sunscreen with no white cast. The single most effective anti-ageing step in any routine.',
+   sourcing:'Non-nano zinc oxide; reef-safe formula.',
+   safety:['Pregnancy-safe','Mineral / reef-safe']},
+];
+
+const SKIN_LABEL = {oily:'Oily',normal:'Normal',dry:'Dry',combination:'Combination'};
+const DOSHA = {
+  vata:{name:'Vata',color:'var(--vata)',note:'Air & ether — tends dry, fine, thirsty skin.',
+        look:['Hydrating oils','Almond','Shatavari','Hyaluronic acid'], avoid:['Harsh foaming washes','Over-exfoliating']},
+  pitta:{name:'Pitta',color:'var(--pitta)',note:'Fire & water — tends sensitive, warm, reactive skin.',
+        look:['Cooling aloe','Sandalwood','Rose','Liquorice'], avoid:['Hot water','Strong acids','Heavy fragrance']},
+  kapha:{name:'Kapha',color:'var(--kapha)',note:'Earth & water — tends oily, congested, dull skin.',
+        look:['Clarifying neem','Turmeric','Clay','Niacinamide'], avoid:['Heavy occlusive creams','Skipping exfoliation']},
+};
+
+/* ---------- Fun-fact content (end-of-quiz personality moment) ---------- */
+const CULTURE_TRAIT = {
+  festivals:'bringing everyone together',
+  yoga:'a calm, mindful kind of glow',
+  arts:'rhythm and a touch of old-soul grace',
+  crafts:'colour, texture and detail',
+  cinema:'big-hearted, full-of-feeling energy',
+};
+const SPICE_NOTE = {
+  turmeric:'you reach for turmeric — the spice world’s all-rounder',
+  chilli:'you like a little heat in life (your skin can take the hint too)',
+  ginger:'ginger keeps you warm and on the move',
+  cumin:'earthy cumin keeps you grounded',
+  cardamom:'cool, aromatic cardamom keeps you calm',
+};
+const DOSHA_FUN = {
+  vata:'Creative and always on the go — your skin just loves a little extra hydration.',
+  pitta:'Driven and warm — your skin is happiest when you keep things cool and calm.',
+  kapha:'Steady and nurturing — your skin glows brightest when you keep it light and clarified.',
+};
+
+/* ---------- Ingredient glossary (for tap-to-learn tooltips) ---------- */
+const INGREDIENT_INFO = {
+  'neem':{name:'Neem',what:'Antibacterial — clears breakouts and calms oily, congested skin.',suits:'Oily / combination · Pitta, Kapha'},
+  'tulsi':{name:'Tulsi (holy basil)',what:'Purifies and soothes blemish-prone skin.',suits:'Oily / combination · Pitta, Kapha'},
+  'turmeric':{name:'Turmeric',what:'Antioxidant that brightens tone and calms inflammation.',suits:'All skin · especially Pitta, Kapha'},
+  'aloe':{name:'Aloe',what:'Lightweight hydration that cools and soothes.',suits:'All skin · especially Pitta'},
+  'rose':{name:'Rose',what:'Tones, hydrates and balances the skin.',suits:'Normal / dry · Vata, Pitta'},
+  'sandalwood':{name:'Sandalwood',what:'Calms redness, sensitivity and heat.',suits:'Sensitive / normal · Pitta'},
+  'brahmi':{name:'Brahmi',what:'Strengthens the skin barrier; antioxidant-rich.',suits:'Dry / normal · Vata'},
+  'amla':{name:'Amla',what:'Vitamin-C rich — brightens and helps firm skin.',suits:'All skin'},
+  'saffron':{name:'Saffron',what:'The classic Ayurvedic radiance and even-tone ingredient.',suits:'Dry / normal · Vata'},
+  'shatavari':{name:'Shatavari',what:'Nourishes and replenishes depleted, dry skin.',suits:'Dry · Vata'},
+  'triphala':{name:'Triphala',what:'Gentle antioxidant blend for overnight renewal.',suits:'Normal / combination · Pitta, Kapha'},
+  'bakuchiol':{name:'Bakuchiol',what:'A gentle plant alternative to retinol; smooths texture.',suits:'All skin (well tolerated)'},
+  'niacinamide':{name:'Niacinamide',what:'Evens tone, controls oil and refines the look of pores.',suits:'Oily / combination'},
+  'hyaluronic':{name:'Hyaluronic acid',what:'Draws water into the skin for lasting hydration.',suits:'All skin'},
+  'zinc':{name:'Zinc oxide',what:'Mineral UV protection that also calms skin.',suits:'All skin'},
+  'multani':{name:'Multani mitti',what:'Fuller’s earth clay that draws out oil and congestion.',suits:'Oily · Kapha'},
+  'almond':{name:'Almond oil',what:'Softening, vitamin-E rich moisture for dry skin.',suits:'Dry · Vata'},
+  'shea':{name:'Shea butter',what:'Rich, cushioning moisture that seals in hydration.',suits:'Dry'},
+  'liquorice':{name:'Liquorice',what:'Brightens dark marks and soothes irritation.',suits:'Sensitive · Pitta'},
+  'witch hazel':{name:'Witch hazel',what:'Gently tightens and mattifies oily skin.',suits:'Oily'},
+  'glycerin':{name:'Glycerin',what:'A humectant that holds moisture in the skin.',suits:'All skin'},
+  'honey':{name:'Honey',what:'Humectant, antibacterial and soothing.',suits:'Dry / normal'},
+  'green tea':{name:'Green tea',what:'Antioxidant that calms and protects.',suits:'Oily / combination'},
+  'cucumber':{name:'Cucumber',what:'Cooling and lightly hydrating.',suits:'Normal · Pitta'},
+  'oat':{name:'Oat',what:'Soothes irritation and supports the barrier.',suits:'Sensitive'},
+  'sesame':{name:'Sesame oil',what:'Warming, nourishing base oil — a classic in Ayurveda.',suits:'Dry · Vata'},
+  'clay':{name:'Clay',what:'Draws out excess oil and impurities.',suits:'Oily · Kapha'},
+  'vitamin c':{name:'Vitamin C',what:'Brightens tone and defends against daily damage.',suits:'All skin'},
+};
+function lookupIngredient(text){
+  const t=(text||'').toLowerCase();
+  for(const k in INGREDIENT_INFO){ if(t.includes(k)) return INGREDIENT_INFO[k]; }
+  return null;
+}
+
+/* ---------- Quiz definition ---------- */
+const QUIZ = [
+  {q:'By mid-afternoon, your skin usually feels…', sub:'Tells us your core skin type.',
+   opts:[
+     {t:'Tight, maybe a little flaky', s:'Dry all over', skin:'dry'},
+     {t:'Shiny or oily across the whole face', s:'Oily all over', skin:'oily'},
+     {t:'Oily on the T-zone, normal-to-dry on cheeks', s:'The classic combination', skin:'combination'},
+     {t:'Comfortable and balanced', s:'Lucky you', skin:'normal'},
+   ]},
+  {q:'How would you describe your pores?', sub:'Confirms skin type.',
+   opts:[
+     {t:'Small, barely visible', s:'', skin:'dry'},
+     {t:'Large, especially around the nose', s:'', skin:'oily'},
+     {t:'Visible on the T-zone, fine elsewhere', s:'', skin:'combination'},
+     {t:'Even and unremarkable', s:'', skin:'normal'},
+   ]},
+  {q:'When the weather changes, your skin tends to…', sub:'This points to your dosha — Ayurveda’s read on your skin’s nature.',
+   opts:[
+     {t:'Get dry, rough or chapped; you feel the cold', s:'Vata leaning', dosha:'vata'},
+     {t:'Flush, get red or break out in the heat', s:'Pitta leaning', dosha:'pitta'},
+     {t:'Get oily, congested or look dull & heavy', s:'Kapha leaning', dosha:'kapha'},
+   ]},
+  {q:'Which best describes you overall?', sub:'Doshas describe the whole person, not just skin.',
+   opts:[
+     {t:'Light, quick, often cold, changeable energy', s:'Vata', dosha:'vata'},
+     {t:'Medium build, warm, intense, driven', s:'Pitta', dosha:'pitta'},
+     {t:'Solid, steady, calm, slow to change', s:'Kapha', dosha:'kapha'},
+   ]},
+  {q:'What’s your main skin goal right now?', sub:'We’ll prioritise this in your routine.',
+   opts:[
+     {t:'Clear up breakouts', s:'', concern:'breakouts'},
+     {t:'More hydration', s:'', concern:'dryness'},
+     {t:'Brighten dullness / glow', s:'', concern:'dullness'},
+     {t:'Calm redness & sensitivity', s:'', concern:'sensitivity'},
+     {t:'Soften early fine lines', s:'', concern:'fine lines'},
+   ]},
+  {q:'Which part of Indian culture do you love most?', sub:'Just for fun — it helps us get to know you.',
+   opts:[
+     {t:'Festivals & food', s:'The one who brings everyone together', culture:'festivals'},
+     {t:'Yoga & wellness', s:'Calm and mindful', culture:'yoga'},
+     {t:'Classical dance & music', s:'An old soul with great rhythm', culture:'arts'},
+     {t:'Textiles & handicrafts', s:'An eye for colour and detail', culture:'crafts'},
+     {t:'Cinema & Bollywood', s:'Big-hearted (and a little dramatic)', culture:'cinema'},
+   ]},
+  {q:'Which spice do you reach for most, day to day?', sub:'In Ayurveda, what warms or cools you can hint at your dosha.',
+   opts:[
+     {t:'Turmeric (haldi)', s:'The all-rounder', spice:'turmeric'},
+     {t:'Chilli', s:'You like a little heat', spice:'chilli', doshaHint:'pitta'},
+     {t:'Ginger (adrak)', s:'Warming and zingy', spice:'ginger', doshaHint:'kapha'},
+     {t:'Cumin (jeera)', s:'Earthy and grounding', spice:'cumin', doshaHint:'vata'},
+     {t:'Cardamom (elaichi)', s:'Cool and aromatic', spice:'cardamom'},
+   ]},
+];
+
+/* ---------- App state ---------- */
+let state = {
+  view:'home',
+  qStep:0,
+  answers:[],
+  profile:null,       // {skin, dosha, concern}
+  tod:'AM',
+  shopSkin:'all',
+  shopDosha:'all',
+  cart:[],            // [{id, qty}]
+};
+
+/* ---------- Routine tracking (checklist + streak) ---------- */
+function todayStr(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function yesterdayStr(){const d=new Date();d.setDate(d.getDate()-1);return todayStr(d);}
+function loadProgress(){
+  let p={date:todayStr(),done:{},streak:0,lastComplete:null};
+  try{const s=localStorage.getItem('kanti_routine');if(s){const d=JSON.parse(s);if(d&&typeof d==='object')p=Object.assign(p,d);}}catch(e){}
+  if(p.date!==todayStr()){p.done={};p.date=todayStr();} // new day → fresh checkboxes, streak kept
+  return p;
+}
+function saveProgress(){try{localStorage.setItem('kanti_routine',JSON.stringify(routine));}catch(e){}}
+let routine = loadProgress();
+let activeTipEl = null;
+
+/* ---------- Account (profile + order history) ---------- */
+function loadAccount(){
+  let a={profile:null,orders:[]};
+  try{const s=localStorage.getItem('kanti_account');if(s){const d=JSON.parse(s);if(d&&typeof d==='object')a=Object.assign(a,d);}}catch(e){}
+  return a;
+}
+function saveAccount(){try{localStorage.setItem('kanti_account',JSON.stringify(account));}catch(e){}}
+let account = loadAccount();
+function fmtDate(iso){try{return new Date(iso).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});}catch(e){return iso;}}
+
+function toggleStep(tod,idx){
+  const k=tod+':'+idx;
+  routine.done[k]=!routine.done[k];
+  maybeCompleteDay();           // updates streak + saves
+  const y=window.scrollY; renderResults(); window.scrollTo(0,y);
+}
+function maybeCompleteDay(){
+  if(!state.profile){saveProgress();return;}
+  const am=buildRoutine(state.profile,'AM'), pm=buildRoutine(state.profile,'PM');
+  const amC=am.length>0 && am.every((_,i)=>routine.done['AM:'+i]);
+  const pmC=pm.length>0 && pm.every((_,i)=>routine.done['PM:'+i]);
+  if(amC&&pmC){
+    const t=todayStr();
+    if(routine.lastComplete!==t){
+      routine.streak=(routine.lastComplete===yesterdayStr())?routine.streak+1:1;
+      routine.lastComplete=t;
+    }
+  }
+  saveProgress();
+}
+
+/* ---------- Helpers ---------- */
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const money = n => '$'+n.toFixed(2);
+const prod = id => PRODUCTS.find(p=>p.id===id);
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
+
+/* ---------- Ingredient tooltips ---------- */
+function enhanceTips(root){
+  (root||document).querySelectorAll('.ing-tag, .chip:not(.warn)').forEach(el=>{
+    if(el.dataset.tip) return;
+    if(lookupIngredient(el.textContent.trim())){
+      el.dataset.tip='1'; el.tabIndex=0; el.setAttribute('role','button'); el.classList.add('has-tip');
+    }
+  });
+}
+function showTip(el){
+  const info=lookupIngredient(el.textContent.trim()); if(!info) return;
+  let tip=document.getElementById('ingtip');
+  if(!tip){tip=document.createElement('div');tip.id='ingtip';tip.className='ingtip';document.body.appendChild(tip);}
+  tip.innerHTML=`<b>${info.name}</b><span>${info.what}</span><em>Best for: ${info.suits}</em>`;
+  tip.style.display='block';
+  const r=el.getBoundingClientRect();
+  const tw=Math.min(260, window.innerWidth-24);
+  tip.style.width=tw+'px';
+  let left=Math.max(12, Math.min(r.left+r.width/2-tw/2, window.innerWidth-tw-12));
+  tip.style.left=left+'px'; tip.style.top=(r.bottom+8)+'px';
+  const th=tip.offsetHeight;
+  if(r.bottom+8+th>window.innerHeight-12) tip.style.top=Math.max(12,r.top-th-8)+'px';
+  activeTipEl=el;
+}
+function hideTip(){const tip=document.getElementById('ingtip'); if(tip)tip.style.display='none'; activeTipEl=null;}
+function toggleTip(el){ activeTipEl===el ? hideTip() : showTip(el); }
+
+function go(view){
+  state.view=view;
+  if(view==='quiz'){state.qStep=0;state.answers=[];}
+  window.scrollTo({top:0,behavior:'instant'});
+  render();
+}
+
+/* ---------- Cart ---------- */
+function addToCart(id,silent){
+  const line=state.cart.find(c=>c.id===id);
+  if(line)line.qty++; else state.cart.push({id,qty:1});
+  updateCartCount();
+  if(!silent)toast(prod(id).name+' added to bag');
+}
+function changeQty(id,d){
+  const line=state.cart.find(c=>c.id===id);if(!line)return;
+  line.qty+=d; if(line.qty<=0)state.cart=state.cart.filter(c=>c.id!==id);
+  updateCartCount();renderDrawer();
+}
+function removeLine(id){state.cart=state.cart.filter(c=>c.id!==id);updateCartCount();renderDrawer();}
+function cartTotal(){return state.cart.reduce((s,c)=>s+prod(c.id).price*c.qty,0);}
+function cartQty(){return state.cart.reduce((s,c)=>s+c.qty,0);}
+function updateCartCount(){$('#cartCount').textContent=cartQty();}
+
+function openCart(){renderDrawer();$('#drawer').classList.add('open');}
+function closeCart(){$('#drawer').classList.remove('open');}
+
+function renderDrawer(){
+  const body=$('#drawerBody'),foot=$('#drawerFoot');
+  if(state.cart.length===0){
+    body.innerHTML=`<div class="empty-state"><div class="big">🧺</div><p>Your bag is empty.</p>
+      <button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="closeCart();go('shop')">Browse products</button></div>`;
+    foot.innerHTML='';return;
+  }
+  body.innerHTML=state.cart.map(c=>{const p=prod(c.id);return `
+    <div class="cart-line">
+      <div class="thumb" style="background:${p.bg}">${p.emoji}</div>
+      <div class="cl-body">
+        <b>${p.name}</b><small>${money(p.price)}</small>
+        <div class="qty">
+          <button onclick="changeQty('${p.id}',-1)">−</button>
+          <span>${c.qty}</span>
+          <button onclick="changeQty('${p.id}',1)">+</button>
+        </div>
+        <button class="remove" onclick="removeLine('${p.id}')">Remove</button>
+      </div>
+      <div style="font-weight:700">${money(p.price*c.qty)}</div>
+    </div>`;}).join('');
+  foot.innerHTML=`
+    <div class="subtotal"><span>Subtotal</span><span>${money(cartTotal())}</span></div>
+    <div class="note">Shipping & taxes calculated at checkout.</div>
+    <button class="btn btn-primary btn-block" onclick="closeCart();go('checkout')">Checkout</button>`;
+}
+
+/* ---------- Product modal ---------- */
+function openModal(id){
+  const p=prod(id);
+  const why = p._why ? `<div class="demo-badge" style="margin:0 0 14px">⭑ Recommended for you — ${p._why}</div>`:'';
+  $('#modal').innerHTML=`
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-top">
+      <div class="modal-img" style="background:${p.bg}">${p.emoji}</div>
+      <div>
+        <div class="cat">${p.cat}</div>
+        <h2>${p.name}</h2>
+        ${why}
+        <p class="desc">${p.desc}</p>
+        <div>${p.ings.map(i=>`<span class="ing-tag">${i}</span>`).join(' ')}</div>
+      </div>
+    </div>
+    <div class="modal-meta">
+      <div class="meta-row"><span class="k">Full ingredients</span><span>${p.ings.join(', ')}, plant-derived base</span></div>
+      <div class="meta-row"><span class="k">Suited to</span><span>${p.skin.map(s=>SKIN_LABEL[s]).join(', ')} skin · ${p.dosha.map(d=>DOSHA[d].name).join('/')} dosha</span></div>
+      <div class="meta-row"><span class="k">Sourcing</span><span>${p.sourcing}</span></div>
+      <div class="meta-row"><span class="k">Good to know</span><span>${p.safety.map(s=>`<span class="safety-flag">✓ ${s}</span>`).join('')}</span></div>
+    </div>
+    <div class="modal-buy">
+      <span class="price">${money(p.price)}</span>
+      <button class="btn btn-primary" style="flex:1" onclick="addToCart('${p.id}');">Add to bag</button>
+    </div>`;
+  $('#overlay').classList.add('open');
+  enhanceTips($('#modal'));
+}
+function closeModal(){$('#overlay').classList.remove('open');}
+
+/* ---------- Quiz logic ---------- */
+function answer(opt){
+  state.answers[state.qStep]=opt;
+  renderQuiz();
+}
+function nextQ(){
+  if(state.qStep<QUIZ.length-1){state.qStep++;renderQuiz();window.scrollTo({top:0});}
+  else{buildProfile();state.animateResults=true;go('results');}
+}
+function prevQ(){if(state.qStep>0){state.qStep--;renderQuiz();window.scrollTo({top:0});}}
+
+function buildProfile(){
+  const skinVotes={},doshaVotes={};let concern=null,culture=null,spice=null;
+  state.answers.forEach((a,i)=>{
+    if(a.skin)skinVotes[a.skin]=(skinVotes[a.skin]||0)+(i===0?2:1); // Q1 weighted
+    if(a.dosha)doshaVotes[a.dosha]=(doshaVotes[a.dosha]||0)+1;
+    if(a.doshaHint)doshaVotes[a.doshaHint]=(doshaVotes[a.doshaHint]||0)+0.5; // spice = gentle tiebreaker
+    if(a.concern)concern=a.concern;
+    if(a.culture)culture=a.culture;
+    if(a.spice)spice=a.spice;
+  });
+  const skin=Object.keys(skinVotes).sort((a,b)=>skinVotes[b]-skinVotes[a])[0]||'normal';
+  const dosha=Object.keys(doshaVotes).sort((a,b)=>doshaVotes[b]-doshaVotes[a])[0]||'vata';
+  state.profile={skin,dosha,concern,culture,spice};
+}
+
+/* match score: dosha + skin + concern */
+function scoreProduct(p,prof){
+  let s=0;
+  if(p.dosha.includes(prof.dosha))s+=3;
+  if(p.skin.includes(prof.skin))s+=3;
+  if(prof.concern && p.concern && p.concern.includes(prof.concern))s+=2;
+  return s;
+}
+function pickForSlot(slot,prof,todFilter){
+  const cands=PRODUCTS.filter(p=>p.slot===slot &&
+     (!todFilter || p.tod===todFilter || p.tod==='both'));
+  cands.sort((a,b)=>scoreProduct(b,prof)-scoreProduct(a,prof));
+  return cands[0];
+}
+function buildRoutine(prof,tod){
+  // ordered slots
+  let order = tod==='AM'
+    ? ['Cleanse','Tone','Treat','Moisturise','Protect']
+    : ['Cleanse','Tone','Treat','Moisturise'];
+  const steps=[];
+  order.forEach(slot=>{
+    const p=pickForSlot(slot, prof, tod);
+    if(p){
+      const why=[];
+      if(p.dosha.includes(prof.dosha))why.push(DOSHA[prof.dosha].name);
+      if(p.skin.includes(prof.skin))why.push(SKIN_LABEL[prof.skin].toLowerCase()+' skin');
+      p._why = why.length? 'matches your '+why.join(' + ') : 'a universal step';
+      steps.push({slot,p});
+    }
+  });
+  return steps;
+}
+
+/* =========================================================
+   RENDERERS
+   ========================================================= */
+function render(){
+  closeModal();
+  if(state.view==='home')renderHome();
+  else if(state.view==='quiz')renderQuiz();
+  else if(state.view==='results')renderResults();
+  else if(state.view==='shop')renderShop();
+  else if(state.view==='checkout')renderCheckout();
+  else if(state.view==='confirm')renderConfirm();
+  else if(state.view==='account')renderAccount();
+  hideTip();
+  enhanceTips(app);
+}
+
+function renderHome(){
+  app.innerHTML=`
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <div class="hero-eyebrow">Ayurvedic skincare · made personal</div>
+        <h1>Skincare that fits <em>your nature.</em></h1>
+        <p>Stop guessing across a dozen unreliable sites. Take a 2-minute quiz and get an ingredient-matched routine built around your skin type and your dosha.</p>
+        <div class="hero-cta">
+          <button class="btn btn-gold" onclick="go('quiz')">Find your routine →</button>
+          <button class="btn btn-ghost" style="color:#F4F1E8;border-color:rgba(255,255,255,.3)" onclick="go('shop')">Browse products</button>
+        </div>
+      </div>
+      <div class="doshas">
+        ${['vata','pitta','kapha'].map(k=>{const d=DOSHA[k];return `
+        <button class="dflip" onclick="this.classList.toggle('flipped')" aria-label="Flip to learn about ${d.name}">
+          <div class="dflip-inner">
+            <div class="dface dfront">
+              <span class="dosha-dot" style="background:${d.color}"></span>
+              <span class="dtext"><b>${d.name}</b><small>${d.note}</small></span>
+              <span class="dhint">Tap ↻</span>
+            </div>
+            <div class="dface dback">
+              <span class="dtext"><b>${d.name} skincare</b><small>Look for ${d.look.slice(0,3).join(', ')}. Ease up on ${d.avoid[0].toLowerCase()}.</small></span>
+              <span class="dhint">Back ↻</span>
+            </div>
+          </div>
+        </button>`;}).join('')}
+      </div>
+    </div>
+  </section>
+
+  <div class="trust-strip"><div class="wrap">
+    <div class="trust-item"><i>🌿</i> Full ingredient transparency</div>
+    <div class="trust-item"><i>📍</i> Traceable sourcing</div>
+    <div class="trust-item"><i>🐰</i> Cruelty-free & vegan</div>
+    <div class="trust-item"><i>🧪</i> Purity-tested botanicals</div>
+  </div></div>
+
+  <section class="section wrap">
+    <div class="section-head">
+      <div class="eyebrow">How Kanti works</div>
+      <h2>A routine built for you, not for everyone</h2>
+      <p>Most sites sell products. Kanti figures out what your skin actually needs first — then shows you the right things in the right order.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><h3>Take the skin quiz</h3><p>A few quick questions decode your skin type, your Ayurvedic dosha — and a little about you.</p></div>
+      <div class="step"><div class="num">2</div><h3>Get your profile & routine</h3><p>See which ingredients to look for, and a step-by-step AM / PM routine matched to you.</p></div>
+      <div class="step"><div class="num">3</div><h3>Shop with confidence</h3><p>Every product shows its full ingredients, sourcing and safety notes. No guesswork.</p></div>
+    </div>
+    <div style="text-align:center;margin-top:44px">
+      <button class="btn btn-primary" onclick="go('quiz')">Start the 2-minute quiz →</button>
+    </div>
+  </section>
+
+  <section class="section wrap" style="padding-top:0">
+    <div class="section-head"><div class="eyebrow">Bestsellers</div><h2>A few favourites</h2></div>
+    <div class="grid">${PRODUCTS.slice(0,3).map(cardHTML).join('')}</div>
+  </section>
+
+  ${footerHTML()}`;
+}
+
+function renderQuiz(){
+  const step=QUIZ[state.qStep];
+  const chosen=state.answers[state.qStep];
+  const pct=Math.round(((state.qStep)/(QUIZ.length))*100);
+  app.innerHTML=`
+  <div class="quiz">
+    <div class="progress"><div style="width:${pct}%"></div></div>
+    <div class="progress-label"><span>Question ${state.qStep+1} of ${QUIZ.length}</span><span>${SKIN_or_DOSHA(state.qStep)}</span></div>
+    <h2 class="q-title">${step.q}</h2>
+    <p class="q-sub">${step.sub}</p>
+    <div class="options">
+      ${step.opts.map((o,i)=>`
+        <button class="option ${chosen&&chosen.t===o.t?'selected':''}" onclick='answer(${JSON.stringify(o)})'>
+          <span class="mark"></span>
+          <span><b>${o.t}</b>${o.s?`<small>${o.s}</small>`:''}</span>
+        </button>`).join('')}
+    </div>
+    <div class="quiz-nav">
+      <button class="btn btn-ghost ${state.qStep===0?'':''}" onclick="${state.qStep===0?"go('home')":'prevQ()'}">← Back</button>
+      <button class="btn btn-primary" onclick="nextQ()" ${chosen?'':'disabled'}>${state.qStep===QUIZ.length-1?'See my routine':'Next'}</button>
+    </div>
+  </div>`;
+}
+function SKIN_or_DOSHA(i){return i<2?'Skin type':i<4?'Your dosha':i===4?'Your goal':'A little fun';}
+
+function funFactHTML(prof){
+  const ct=CULTURE_TRAIT[prof.culture]||'your own thing';
+  const sn=SPICE_NOTE[prof.spice]||'you keep your kitchen interesting';
+  const df=DOSHA_FUN[prof.dosha];
+  return `<div class="funfact">
+    <div class="ff-badge">✨ A little about you</div>
+    <p>You’re drawn to <b>${ct}</b>, and <b>${sn}</b>. That pairs nicely with your <b>${DOSHA[prof.dosha].name}</b> nature — ${df}</p>
+  </div>`;
+}
+function renderResults(){
+  const prof=state.profile;const d=DOSHA[prof.dosha];
+  const steps=buildRoutine(prof,state.tod);
+  const weekly=PRODUCTS.filter(p=>p.slot==='Weekly').map(p=>({slot:'Weekly',p}))
+      .sort((a,b)=>scoreProduct(b.p,prof)-scoreProduct(a.p,prof)).slice(0,1);
+  const concernTxt = prof.concern? ` We’ve prioritised your goal: <b>${prof.concern}</b>.`:'';
+  const anim = state.animateResults ? 'animate' : '';
+  state.animateResults = false; // play once per entry, not on AM/PM toggle
+
+  app.innerHTML=`
+  <div class="wrap results ${anim}">
+    <div class="profile-card rv" style="--d:0s">
+      <div>
+        <div class="eyebrow">Your skin profile</div>
+        <h2><em>${SKIN_LABEL[prof.skin]}</em> skin · ${d.name}-leaning</h2>
+        <p>Your skin reads as ${SKIN_LABEL[prof.skin].toLowerCase()} with a ${d.name} tendency — ${d.note.toLowerCase()}${concernTxt}</p>
+      </div>
+      <div class="dosha-badge">
+        <div class="big" style="background:${d.color}"></div>
+        <b>${d.name}</b><small>dominant dosha</small>
+      </div>
+    </div>
+
+    <div class="rv" style="--d:.14s">${funFactHTML(prof)}</div>
+
+    <div class="guidance rv" style="--d:.28s">
+      <div class="guide-card"><h3>🌿 Look for</h3><div class="chips">${d.look.map(x=>`<span class="chip">${x}</span>`).join('')}</div></div>
+      <div class="guide-card"><h3>⚠️ Go easy on</h3><div class="chips">${d.avoid.map(x=>`<span class="chip warn">${x}</span>`).join('')}</div></div>
+    </div>
+
+    <div class="rv" style="--d:.42s">
+      ${streakHTML(prof)}
+      <div class="routine-head">
+        <h2>Your daily routine</h2>
+        <div class="tod">
+          <button class="${state.tod==='AM'?'active':''}" onclick="state.tod='AM';renderResults()">☀️ Morning</button>
+          <button class="${state.tod==='PM'?'active':''}" onclick="state.tod='PM';renderResults()">🌙 Evening</button>
+        </div>
+      </div>
+      <p class="routine-hint">Tick each step off as you go — finish morning and evening to grow your streak.</p>
+      ${steps.map((s,i)=>routineStepHTML(s,i+1,state.tod,i,true)).join('')}
+    </div>
+
+    <div class="rv" style="--d:.56s">
+      <div class="routine-head" style="margin-top:36px"><h2>Weekly treat</h2></div>
+      ${weekly.map((s,i)=>routineStepHTML(s,i+1,'WK',i,false)).join('')}
+    </div>
+
+    <div class="rv" style="--d:.68s;display:flex;gap:14px;flex-wrap:wrap;margin-top:34px">
+      <button class="btn btn-gold" onclick="addWholeRoutine()">Add full routine to bag</button>
+      <button class="btn btn-ghost" onclick="shareResult()">Share my result</button>
+      <button class="btn btn-ghost" onclick="go('shop')">Keep browsing</button>
+      <button class="btn btn-ghost" onclick="go('quiz')">Retake quiz</button>
+    </div>
+  </div>
+  ${footerHTML()}`;
+  enhanceTips(app);
+}
+function streakHTML(prof){
+  const am=buildRoutine(prof,'AM'), pm=buildRoutine(prof,'PM');
+  const amDone=am.filter((_,i)=>routine.done['AM:'+i]).length;
+  const pmDone=pm.filter((_,i)=>routine.done['PM:'+i]).length;
+  const amC=amDone===am.length, pmC=pmDone===pm.length;
+  const n=routine.streak||0;
+  const msg = (amC&&pmC) ? 'Both done today — lovely work!' :
+              n>0 ? 'Keep it going — finish today to extend your streak.' :
+              'Complete morning and evening to start a streak.';
+  return `<div class="streak">
+    <div class="streak-flame">${n>0?'🔥':'🌱'}</div>
+    <div><b>${n}-day streak</b><small>${msg}</small></div>
+    <div class="streak-prog">
+      <span class="${amC?'c':''}">☀️ Morning ${amDone}/${am.length}</span>
+      <span class="${pmC?'c':''}">🌙 Evening ${pmDone}/${pm.length}</span>
+    </div>
+  </div>`;
+}
+function routineStepHTML(s,n,tod,idx,checkable){
+  const p=s.p;
+  const checked = checkable && routine.done[tod+':'+idx];
+  const lead = checkable
+    ? `<button class="step-no toggle ${checked?'on':''}" aria-pressed="${checked?'true':'false'}" title="Mark ${p.name} as done" onclick="event.stopPropagation();toggleStep('${tod}',${idx})">${checked?'✓':n}</button>`
+    : `<div class="step-no">${n}</div>`;
+  return `<div class="routine-step ${checked?'done':''}">
+    ${lead}
+    <div class="rs-thumb" style="background:${p.bg}">${p.emoji}</div>
+    <div class="rs-body">
+      <span class="slot">${s.slot}</span>
+      <b>${p.name}</b>
+      <small>${p._why?('✓ '+p._why):p.benefit}</small>
+    </div>
+    <span class="rs-price">${money(p.price)}</span>
+    <button class="btn btn-primary btn-sm" onclick="addToCart('${p.id}')">Add</button>
+    <button class="btn btn-ghost btn-sm" onclick="openModal('${p.id}')">Details</button>
+  </div>`;
+}
+function addWholeRoutine(){
+  const prof=state.profile;
+  const ids=new Set();
+  buildRoutine(prof,'AM').forEach(s=>ids.add(s.p.id));
+  buildRoutine(prof,'PM').forEach(s=>ids.add(s.p.id));
+  PRODUCTS.filter(p=>p.slot==='Weekly').sort((a,b)=>scoreProduct(b,prof)-scoreProduct(a,prof))[0] &&
+    ids.add(PRODUCTS.filter(p=>p.slot==='Weekly').sort((a,b)=>scoreProduct(b,prof)-scoreProduct(a,prof))[0].id);
+  ids.forEach(id=>addToCart(id,true));
+  toast(ids.size+' products added to bag');
+  openCart();
+}
+
+/* ---------- Shop ---------- */
+function cardHTML(p){
+  const flag=p.safety.find(s=>/safe|free/i.test(s));
+  return `<div class="card" onclick="openModal('${p.id}')">
+    <div class="card-img" style="background:${p.bg}">${p.emoji}${flag?`<span class="card-flag">${flag}</span>`:''}</div>
+    <div class="card-body">
+      <div class="cat">${p.cat}</div>
+      <h3>${p.name}</h3>
+      <div class="benefit">${p.benefit}</div>
+      <div class="card-ings">${p.ings.slice(0,3).map(i=>`<span class="ing-tag">${i}</span>`).join('')}</div>
+      <div class="card-foot">
+        <span class="price">${money(p.price)}</span>
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();addToCart('${p.id}')">Add</button>
+      </div>
+    </div>
+  </div>`;
+}
+function renderShop(){
+  const skins=['all','oily','normal','combination','dry'];
+  const doshas=['all','vata','pitta','kapha'];
+  let list=PRODUCTS.filter(p=>
+    (state.shopSkin==='all'||p.skin.includes(state.shopSkin)) &&
+    (state.shopDosha==='all'||p.dosha.includes(state.shopDosha)));
+  app.innerHTML=`
+  <div class="wrap shop">
+    <div class="section-head" style="margin-bottom:28px">
+      <div class="eyebrow">Shop</div>
+      <h2>Every product, fully transparent</h2>
+      <p>Filter by your skin type and dosha. Tap any product to see its full ingredients, sourcing and safety notes.</p>
+    </div>
+    <div class="filters">
+      <span class="label">Skin type</span>
+      ${skins.map(s=>`<button class="pill ${state.shopSkin===s?'active':''}" onclick="state.shopSkin='${s}';renderShop()">${s==='all'?'All':SKIN_LABEL[s]}</button>`).join('')}
+    </div>
+    <div class="filters dosha-filters">
+      <span class="label">Dosha</span>
+      ${doshas.map(s=>`<button class="pill ${state.shopDosha===s?'active':''}" onclick="state.shopDosha='${s}';renderShop()">${s==='all'?'All':DOSHA[s].name}</button>`).join('')}
+    </div>
+    ${list.length? `<div class="grid">${list.map(cardHTML).join('')}</div>`
+      : `<div class="empty-state"><div class="big">🔍</div><p>No products match that combination yet.</p>
+         <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="state.shopSkin='all';state.shopDosha='all';renderShop()">Clear filters</button></div>`}
+  </div>
+  ${footerHTML()}`;
+}
+
+/* ---------- Checkout ---------- */
+function renderCheckout(){
+  if(state.cart.length===0){
+    app.innerHTML=`<div class="checkout"><div class="empty-state"><div class="big">🧺</div>
+      <p>Your bag is empty — add a routine first.</p>
+      <button class="btn btn-primary btn-sm" style="margin-top:14px" onclick="go('quiz')">Find my routine</button></div></div>${footerHTML()}`;
+    return;
+  }
+  const sub=cartTotal(), ship=sub>50?0:5, total=sub+ship;
+  const pf=account.profile||{};
+  const v=x=>x?String(x).replace(/"/g,'&quot;'):'';
+  app.innerHTML=`
+  <div class="checkout">
+    <h1>Checkout</h1>
+    <p style="color:var(--muted)">${pf.email?'Welcome back — we’ve filled in your saved details.':'You’re almost there. Fill in your details to place the order.'}</p>
+    <div class="co-grid">
+      <div>
+        <h3 style="font-size:20px;margin-bottom:14px">Contact & shipping</h3>
+        <div class="field"><label>Email</label><input id="f_email" type="email" placeholder="you@email.com" value="${v(pf.email)}"></div>
+        <div class="field-row">
+          <div class="field"><label>First name</label><input id="f_first" placeholder="First name" value="${v(pf.first)}"></div>
+          <div class="field"><label>Last name</label><input id="f_last" placeholder="Last name" value="${v(pf.last)}"></div>
+        </div>
+        <div class="field"><label>Phone (optional)</label><input id="f_phone" placeholder="Phone number" value="${v(pf.phone)}"></div>
+        <div class="field"><label>Address</label><input id="f_addr" placeholder="Street address" value="${v(pf.address)}"></div>
+        <div class="field-row">
+          <div class="field"><label>City</label><input id="f_city" placeholder="City" value="${v(pf.city)}"></div>
+          <div class="field"><label>ZIP / Postcode</label><input id="f_zip" placeholder="ZIP" value="${v(pf.zip)}"></div>
+        </div>
+        <h3 style="font-size:20px;margin:22px 0 10px">Payment</h3>
+        <div class="demo-badge">🔒 Demo only — this is a class prototype. Don’t enter a real card; any numbers work.</div>
+        <div class="field"><label>Card number</label><input id="f_card" placeholder="4242 4242 4242 4242"></div>
+        <div class="field-row">
+          <div class="field"><label>Expiry</label><input id="f_exp" placeholder="MM/YY"></div>
+          <div class="field"><label>CVC</label><input id="f_cvc" placeholder="123"></div>
+        </div>
+      </div>
+      <div class="co-summary">
+        <h3>Order summary</h3>
+        ${state.cart.map(c=>{const p=prod(c.id);return `<div class="co-line"><span>${p.name} ×${c.qty}</span><span>${money(p.price*c.qty)}</span></div>`;}).join('')}
+        <div class="co-line"><span>Shipping</span><span>${ship===0?'Free':money(ship)}</span></div>
+        <div class="co-total"><span>Total</span><span>${money(total)}</span></div>
+        <button class="btn btn-primary btn-block" style="margin-top:18px" onclick="placeOrder()">Place order · ${money(total)}</button>
+        <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="go('shop')">Back to shop</button>
+      </div>
+    </div>
+  </div>`;
+}
+function placeOrder(){
+  const g=id=>{const el=$('#'+id);return el?el.value.trim():'';};
+  const email=g('f_email'), first=g('f_first');
+  if(!email||!first){toast('Add your email and name to continue');return;}
+  if(!/.+@.+\..+/.test(email)){toast('Enter a valid email address');return;}
+  const sub=cartTotal(), ship=sub>50?0:5, total=sub+ship;
+  const order={
+    no:'KNT-'+Math.floor(100000+Math.random()*900000),
+    date:new Date().toISOString(),
+    email, name:first,
+    items:state.cart.map(c=>{const p=prod(c.id);return {id:p.id,name:p.name,qty:c.qty,price:p.price,emoji:p.emoji,bg:p.bg};}),
+    subtotal:sub, shipping:ship, total,
+    ship_to:{address:g('f_addr'),city:g('f_city'),zip:g('f_zip')}
+  };
+  account.profile={name:(first+' '+g('f_last')).trim(),first,last:g('f_last'),email,phone:g('f_phone'),address:g('f_addr'),city:g('f_city'),zip:g('f_zip')};
+  account.orders.unshift(order);
+  saveAccount();
+  state.lastOrder=order;
+  state.cart=[];updateCartCount();
+  go('confirm');
+}
+function emailPreviewHTML(o){
+  const s=o.ship_to||{};
+  return `<div class="email-card">
+    <div class="email-badge">📧 Confirmation email — preview (demo)</div>
+    <div class="email-head">
+      <div><span class="ek">From</span> Kanti &lt;orders@kanti.example&gt;</div>
+      <div><span class="ek">To</span> ${o.email}</div>
+      <div><span class="ek">Subject</span> Your Kanti order ${o.no} is confirmed 🌿</div>
+    </div>
+    <div class="email-body">
+      <p>Hi ${o.name}, thanks for your order! Here’s what’s on its way:</p>
+      ${o.items.map(it=>`<div class="email-line"><span>${it.name} ×${it.qty}</span><span>${money(it.price*it.qty)}</span></div>`).join('')}
+      <div class="email-line"><span>Shipping</span><span>${o.shipping===0?'Free':money(o.shipping)}</span></div>
+      <div class="email-line total"><span>Total</span><span>${money(o.total)}</span></div>
+      ${s.address?`<p class="email-ship">Shipping to: ${s.address}${s.city?', '+s.city:''} ${s.zip||''}</p>`:''}
+      <p class="email-foot">We’ll send another note when it ships. With care,<br>Team Kanti 🌿</p>
+    </div>
+  </div>`;
+}
+function renderConfirm(){
+  const o=state.lastOrder;
+  if(!o){app.innerHTML=`<div class="confirm"><div class="seal">🧺</div><h1>Nothing here yet</h1><p>Place an order to see your confirmation.</p><div class="confirm-actions"><button class="btn btn-primary" onclick="go('shop')">Shop</button></div></div>`;return;}
+  app.innerHTML=`
+  <div class="confirm">
+    <div class="seal">✓</div>
+    <h1>Order placed!</h1>
+    <p>Thanks, ${o.name}. Your Ayurvedic routine is on its way.<br>
+    Order <span class="order-no">${o.no}</span> · ${money(o.total)}</p>
+    <p class="sent-note">A confirmation email has been sent to <b>${o.email}</b>. Here’s a preview:</p>
+    ${emailPreviewHTML(o)}
+    <div class="confirm-actions">
+      <button class="btn btn-primary" onclick="go('account')">View my orders</button>
+      <button class="btn btn-ghost" onclick="go('shop')">Keep shopping</button>
+    </div>
+    <p class="demo-note">Demo prototype — no real order, payment, or email delivery occurs. The email above shows what would be sent.</p>
+  </div>`;
+}
+function openOrderEmail(no){
+  const o=account.orders.find(x=>x.no===no); if(!o)return;
+  $('#modal').innerHTML=`<button class="modal-close" onclick="closeModal()">✕</button><div style="padding:26px 24px 28px">${emailPreviewHTML(o)}</div>`;
+  $('#overlay').classList.add('open');
+}
+
+/* ---------- Account / profile page ---------- */
+function renderAccount(){
+  const pf=account.profile, orders=account.orders||[], prof=state.profile;
+  const hasAny = pf || orders.length;
+  if(!hasAny){
+    app.innerHTML=`<div class="wrap account">
+      <div class="section-head"><div class="eyebrow">My account</div><h2>Your profile lives here</h2>
+      <p>Once you take the quiz and place an order, your details, skin profile and order history will show up on this page.</p></div>
+      <div class="acct-empty">
+        <button class="btn btn-primary" onclick="go('quiz')">Take the skin quiz</button>
+        <button class="btn btn-ghost" onclick="go('shop')">Browse products</button>
+      </div>
+    </div>${footerHTML()}`;
+    return;
+  }
+  const ed = state.editProfile;
+  const v=x=>x?String(x).replace(/"/g,'&quot;'):'';
+  const detailsCard = ed ? `
+    <div class="acct-card">
+      <h3>Account details</h3>
+      <div class="field"><label>Full name</label><input id="e_name" value="${v(pf&&pf.name)}"></div>
+      <div class="field"><label>Email</label><input id="e_email" value="${v(pf&&pf.email)}"></div>
+      <div class="field"><label>Phone</label><input id="e_phone" value="${v(pf&&pf.phone)}"></div>
+      <div class="field"><label>Address</label><input id="e_addr" value="${v(pf&&pf.address)}"></div>
+      <div class="field-row"><div class="field"><label>City</label><input id="e_city" value="${v(pf&&pf.city)}"></div>
+        <div class="field"><label>ZIP</label><input id="e_zip" value="${v(pf&&pf.zip)}"></div></div>
+      <div style="display:flex;gap:10px;margin-top:6px">
+        <button class="btn btn-primary btn-sm" onclick="saveProfileEdits()">Save</button>
+        <button class="btn btn-ghost btn-sm" onclick="state.editProfile=false;render()">Cancel</button>
+      </div>
+    </div>` : `
+    <div class="acct-card">
+      <div class="acct-card-head"><h3>Account details</h3><button class="link-btn" onclick="state.editProfile=true;render()">Edit</button></div>
+      <div class="acct-row"><span class="ak">Name</span><span>${(pf&&pf.name)||'—'}</span></div>
+      <div class="acct-row"><span class="ak">Email</span><span>${(pf&&pf.email)||'—'}</span></div>
+      <div class="acct-row"><span class="ak">Phone</span><span>${(pf&&pf.phone)||'—'}</span></div>
+    </div>`;
+  const addressCard = `
+    <div class="acct-card">
+      <h3>Default shipping address</h3>
+      ${pf&&pf.address ? `<p class="addr">${pf.name}<br>${pf.address}<br>${pf.city||''} ${pf.zip||''}</p>`
+        : `<p class="muted-p">No address saved yet.</p>`}
+    </div>`;
+  const skinCard = prof ? `
+    <div class="acct-card skin">
+      <div class="acct-card-head"><h3>Your skin profile</h3><button class="link-btn" onclick="state.animateResults=false;go('results')">View routine</button></div>
+      <div class="skin-badges">
+        <span class="skin-pill">${SKIN_LABEL[prof.skin]} skin</span>
+        <span class="skin-pill dosha" style="--dc:${DOSHA[prof.dosha].color}">${DOSHA[prof.dosha].name}-leaning</span>
+        ${routine.streak?`<span class="skin-pill">🔥 ${routine.streak}-day streak</span>`:''}
+      </div>
+    </div>` : `
+    <div class="acct-card">
+      <div class="acct-card-head"><h3>Your skin profile</h3></div>
+      <p class="muted-p">You haven’t taken the quiz this visit. <button class="link-btn" onclick="go('quiz')">Take it now</button></p>
+    </div>`;
+  const ordersSection = `
+    <div class="acct-card wide">
+      <h3>Order history</h3>
+      ${orders.length ? orders.map(o=>`
+        <div class="order">
+          <div class="order-top">
+            <div><b>${o.no}</b><small>${fmtDate(o.date)} · ${o.items.reduce((s,i)=>s+i.qty,0)} item(s)</small></div>
+            <div class="order-total">${money(o.total)}</div>
+          </div>
+          <div class="order-items">
+            ${o.items.map(it=>`<span class="oi"><span class="oi-emoji" style="background:${it.bg}">${it.emoji}</span>${it.name} ×${it.qty}</span>`).join('')}
+          </div>
+          <button class="link-btn" onclick="openOrderEmail('${o.no}')">View confirmation email</button>
+        </div>`).join('')
+      : `<p class="muted-p">No orders yet.</p>`}
+    </div>`;
+  app.innerHTML=`<div class="wrap account">
+    <div class="section-head" style="margin-bottom:26px"><div class="eyebrow">My account</div>
+      <h2>Hi${pf&&pf.first?', '+pf.first:''} 👋</h2>
+      <p>Your Kanti details, skin profile and orders, all in one place.</p></div>
+    <div class="acct-grid">
+      ${detailsCard}
+      ${addressCard}
+      ${skinCard}
+    </div>
+    ${ordersSection}
+  </div>${footerHTML()}`;
+}
+function saveProfileEdits(){
+  const g=id=>{const el=$('#'+id);return el?el.value.trim():'';};
+  account.profile=Object.assign(account.profile||{},{
+    name:g('e_name'), first:(g('e_name').split(' ')[0]||''), email:g('e_email'),
+    phone:g('e_phone'), address:g('e_addr'), city:g('e_city'), zip:g('e_zip')
+  });
+  saveAccount(); state.editProfile=false; render(); toast('Profile updated');
+}
+
+/* ---------- Share your result ---------- */
+function funFactText(prof){
+  const ct=CULTURE_TRAIT[prof.culture]||'your own thing';
+  const sn=SPICE_NOTE[prof.spice]||'you keep your kitchen interesting';
+  return `Drawn to ${ct}, and ${sn}.`;
+}
+function resultSummaryText(prof){
+  const d=DOSHA[prof.dosha];
+  return `My Kanti skin profile: ${SKIN_LABEL[prof.skin]} skin, ${d.name}-leaning. ${funFactText(prof)} Find your Ayurvedic routine 🌿`;
+}
+function wrapCanvasText(ctx,text,cx,y,maxW,lh){
+  const words=text.split(' ');let line='';const lines=[];
+  words.forEach(w=>{const t=line?line+' '+w:w;if(ctx.measureText(t).width>maxW&&line){lines.push(line);line=w;}else line=t;});
+  if(line)lines.push(line);
+  lines.forEach((ln,i)=>ctx.fillText(ln,cx,y+i*lh));
+  return lines.length;
+}
+function renderShareCanvas(prof){
+  const d=DOSHA[prof.dosha], W=1080, H=1080;
+  const c=document.createElement('canvas');c.width=W;c.height=H;
+  const x=c.getContext('2d');
+  x.fillStyle='#20453B';x.fillRect(0,0,W,H);
+  x.strokeStyle='rgba(201,151,47,.5)';x.lineWidth=4;x.strokeRect(50,50,W-100,H-100);
+  x.textAlign='center';
+  x.fillStyle='#E0B964';x.font='700 32px Arial';x.fillText('MY KANTI SKIN PROFILE',W/2,185);
+  x.fillStyle='#F7F3E9';x.font='600 104px Georgia';x.fillText(SKIN_LABEL[prof.skin]+' skin',W/2,330);
+  x.fillStyle='#E0B964';x.font='600 92px Georgia';x.fillText(d.name+'-leaning',W/2,450);
+  const dcol={vata:'#8A90C8',pitta:'#D2764A',kapha:'#5E9160'};const names=['vata','pitta','kapha'];const gap=170,sx=W/2-gap;
+  names.forEach((k,i)=>{x.beginPath();x.fillStyle=dcol[k];x.arc(sx+i*gap,560,36,0,Math.PI*2);x.fill();
+    x.fillStyle=(k===prof.dosha)?'#F7F3E9':'#7E9389';x.font='500 28px Arial';x.fillText(DOSHA[k].name,sx+i*gap,648);});
+  x.fillStyle='#EAE6DA';x.font='400 44px Georgia';
+  wrapCanvasText(x,funFactText(prof),W/2,760,W-260,62);
+  x.fillStyle='#E0B964';x.font='700 70px Georgia';x.fillText('Kanti',W/2,955);
+  x.fillStyle='#AFC0B4';x.font='400 30px Arial';x.fillText('Skincare that fits your nature',W/2,1000);
+  return c;
+}
+function shareResult(){
+  const prof=state.profile; if(!prof){toast('Take the quiz first');return;}
+  const dataUrl=renderShareCanvas(prof).toDataURL('image/png');
+  window._shareData=dataUrl; window._shareText=resultSummaryText(prof);
+  $('#modal').innerHTML=`
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="share-wrap">
+      <h2>Share your result</h2>
+      <img class="share-img" src="${dataUrl}" alt="My Kanti skin result card">
+      <div class="share-actions">
+        <button class="btn btn-primary" onclick="downloadShare()">Download image</button>
+        <button class="btn btn-ghost" onclick="copyShareText()">Copy text</button>
+      </div>
+      <p class="share-note">Save the image to post it, or copy the text to share your result.</p>
+    </div>`;
+  $('#overlay').classList.add('open');
+}
+function downloadShare(){
+  try{const a=document.createElement('a');a.href=window._shareData;a.download='my-kanti-result.png';document.body.appendChild(a);a.click();a.remove();toast('Image downloaded');}
+  catch(e){toast('Download not supported here');}
+}
+function copyShareText(){
+  const t=window._shareText||'';
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(()=>toast('Copied to clipboard')).catch(()=>toast('Press and hold to copy'));}
+  else toast('Copy not supported here');
+}
+
+function footerHTML(){
+  return `<footer><div class="wrap">
+    <div class="brand">Kan<span style="color:var(--gold)">ti</span></div>
+    <small>Ayurvedic skincare that fits your nature · Prototype for demonstration</small>
+  </div></footer>`;
+}
+
+/* ---------- Theme toggle ---------- */
+function toggleTheme(){
+  const root=document.documentElement;
+  const cur=root.getAttribute('data-theme');
+  const isDark = cur==='dark' || (!cur && matchMedia('(prefers-color-scheme:dark)').matches);
+  root.setAttribute('data-theme', isDark?'light':'dark');
+  $('#themeBtn').textContent = isDark?'☾':'☀';
+}
+
+/* ---------- Tooltip interaction (delegated, capture phase) ---------- */
+document.addEventListener('click',function(e){
+  const chip = e.target.closest && e.target.closest('.has-tip');
+  if(chip){ e.stopPropagation(); e.preventDefault(); toggleTip(chip); return; }
+  if(!(e.target.closest && e.target.closest('#ingtip'))) hideTip();
+}, true);
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){ hideTip(); return; }
+  if((e.key==='Enter'||e.key===' ') && e.target.classList && e.target.classList.contains('has-tip')){
+    e.preventDefault(); toggleTip(e.target);
+  }
+});
+window.addEventListener('scroll',hideTip,true);
+window.addEventListener('resize',hideTip);
+
+/* ---------- Boot ---------- */
+render();
+updateCartCount();
+</script>
+</body>
+</html>
