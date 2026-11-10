@@ -52,9 +52,16 @@ Then edit `.env`:
 ```bash
 npm start        # → http://localhost:3000   (busy? PORT=3001 npm start)
 npm run dev      # same, restarts on file changes
-npm test         # API test suite — uses a throwaway database, never touches kanti.db
+npm test             # API tests — throwaway database, never touches kanti.db
+npm run test:e2e     # browser test of every journey (needs Google Chrome; CHROME_PATH to override)
 npm run test-email   # sends one real test email using your SMTP settings
+npm run backup       # copy the database to backups/ now (safe while running)
+npm run restore -- backups/<file>.db   # put a backup back (stop the server first)
 ```
+
+**Admin:** set `ADMIN_EMAIL` in `.env` to your account's email, sign in, and an **Admin** link
+appears in the header (`/#admin`): store numbers, add/edit/hide/delete products (with stock),
+ship/deliver/cancel orders (customers are emailed), retry failed emails, and back up now.
 
 Open the site and try the whole journey: take the quiz → add the routine to your bag → checkout
 (you'll be asked to sign in or create an account, in-page, with your bag kept) → place the order →
@@ -66,22 +73,26 @@ see it in **Account**, with the confirmation email link, reorder, quiz history a
 
 | Piece | Where | Notes |
 |---|---|---|
-| Storefront | `public/index.html` + `public/api.js` | The full UI. All data goes through the `API` client. |
+| Storefront | `public/index.html`, `public/css/kanti.css`, `public/js/*.js`, `public/api.js` | Plain scripts, no build step. No inline scripts/handlers: elements use `data-go` / `data-act` attributes handled in `js/app.js`. |
+| Admin page | `public/js/admin.js` | Only shown to `ADMIN_EMAIL`; the server checks every admin request. |
 | Server & routes | `src/server.js` | Express. Security headers, rate limits, JSON errors. |
 | Sessions | `src/auth.js` | httpOnly cookie (JWT). Changing/resetting a password signs out other devices. |
 | Validation | `src/validate.js` | Every input is checked and length-limited on the server. |
 | Database | `src/db.js` | SQLite with versioned **migrations** (an old `kanti.db` upgrades itself on start). Foreign keys on. |
-| Product catalogue | `src/catalog.js` | **Single source of truth** for products and prices (integer cents) and the shipping rule. |
-| Email | `src/email.js` | Order confirmation + password reset. User data is HTML-escaped. |
+| Products | `products` table (edited on the admin page) | Source of truth for products, prices (integer cents) and stock. `src/catalog.js` only seeds an **empty** database and holds the shipping rule. |
+| Email | `src/email.js` | Saved to an **outbox** table, then sent; failures retry (1m, 5m, 30m, 2h, 12h) then show as failed on the admin page. Order, shipping, cancellation, verification and reset emails. |
+| Backups | `src/backup.js`, `scripts/` | Daily automatic copy, newest 14 kept in `backups/`. |
+| Logging | `src/log.js` | JSON lines in production; every response has an `X-Request-Id`, quoted in error messages. Optional Sentry via `SENTRY_DSN`. |
 | AI quiz | `src/ai.js` | Gemini when a key is set, otherwise rule-based. Answers are sanitised first. |
-| Tests | `test/api.test.js` | `npm test`. |
+| Tests | `test/api.test.js`, `test/e2e/` | `npm test`, `npm run test:e2e`; both run on GitHub Actions (`.github/workflows/ci.yml`). |
 
 ### Database tables
 
-`users` · `products` · `orders` + `order_items` (prices snapshotted in cents, status
-`placed/shipped/delivered/cancelled`, email preview link) · `quiz_results` (every quiz, newest
-first) · `cart_items` (the saved bag) · `routine_progress` (checklist + streak) ·
-`password_resets` (only a hash of each one-time token is stored).
+`users` (incl. `email_verified_at`) · `products` (category, stock, sort order) · `orders` +
+`order_items` (prices snapshotted in cents; status `placed → shipped → delivered`, or
+`cancelled`, which restocks; tracking number) · `quiz_results` · `cart_items` · `routine_progress`
+· `email_outbox` · `email_verifications` / `password_resets` (only hashes of one-time tokens) ·
+`app_meta` (e.g. last backup time). Schema changes are migrations in `src/db.js` (append only).
 
 ### API
 
@@ -95,7 +106,11 @@ POST   /api/auth/logout
 POST   /api/auth/forgot   { email }                        → always { ok } (no account probing)
 POST   /api/auth/reset    { token, password }              → signs in
 
+POST   /api/auth/verify   { token }                        (link from the confirmation email)
+POST   /api/auth/verify/resend
+
 GET    /api/me                                → { user, skin }   (skin = latest quiz result)
+GET    /api/me/export                         → JSON file of everything stored about you
 PATCH  /api/me            { any of name, phone, address, address2, city, state, zip, country }
 POST   /api/me/password   { current, next }
 DELETE /api/me            { password }        → deletes the account and all its data
@@ -109,8 +124,17 @@ GET    /api/quiz/history
 GET    /api/routine | PUT /api/routine { date, done, streak, lastComplete }
 
 POST   /api/orders        { items:[{id,qty}], ship_to:{name,address,city,zip,…}, save_details }
-GET    /api/orders | GET /api/orders/:order_no
+GET    /api/orders | GET /api/orders/:order_no | POST /api/orders/:order_no/cancel   (until shipped)
+
+# admin (ADMIN_EMAIL only)
+GET    /api/admin/stats
+GET    /api/admin/products | POST /api/admin/products | PATCH/DELETE /api/admin/products/:id
+GET    /api/admin/orders?status= | PATCH /api/admin/orders/:order_no { status, tracking_no }
+GET    /api/admin/emails | POST /api/admin/emails/retry | POST /api/admin/backup
 ```
+
+Stock is taken inside the order's database transaction, so two people can never buy the last
+item; deleting a product that appears in past orders archives (hides) it instead.
 
 Everything except products, health, quiz classify and the auth routes needs a signed-in session.
 Order prices, shipping and totals are always worked out on the server from the catalogue —
@@ -123,12 +147,20 @@ hint cookie only tells the UI someone is signed in. Signed out, the bag and last
 kept in `sessionStorage` (this tab) and the routine streak in `localStorage`; on sign-in they are
 merged into the account. Signing out clears them from the device.
 
-## Deploying (later)
+## Deploying
 
-- Hosts like **Render** or **Railway** run this directly (`npm install` + `npm start`).
-- Set `NODE_ENV=production`, `APP_URL=https://your-domain`, `TRUST_PROXY=1`, a real `JWT_SECRET`,
-  and SMTP settings in the host's dashboard — never in code.
-- SQLite needs a **persistent disk**, or move `src/db.js` to **Postgres** for a managed database.
+- **Docker:** `backend/Dockerfile` builds a production image; mount a volume at `/data` (database +
+  backups live there). It has a health check on `/api/health`.
+- **Render:** `render.yaml` at the repo root is a one-click Blueprint (Docker + 1 GB persistent
+  disk + HTTPS). Fill in `APP_URL`, `ADMIN_EMAIL`, SMTP and Gemini values in the dashboard.
+- Production needs `NODE_ENV=production`, `APP_URL=https://your-domain` (the server refuses to start
+  without it), `TRUST_PROXY=1`, a real `JWT_SECRET` — set in the host's dashboard, never in code.
+- SQLite on a persistent disk is fine for a store this size. Move `src/db.js` to Postgres only if
+  you need several servers at once.
+- **Uptime:** point a free monitor (e.g. UptimeRobot) at `https://your-domain/api/health`.
+- **Email at scale:** Gmail allows ~500 emails/day and often lands in spam. For a real launch use a
+  transactional provider (Resend, Brevo, Postmark) with your own domain and SPF/DKIM — it's only a
+  change of `SMTP_*` values.
 
 ## Security notes
 

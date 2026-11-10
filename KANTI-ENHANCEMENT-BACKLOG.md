@@ -53,6 +53,23 @@ Agreed 2026-11-10; H1–H15 done the same day (`npm test` in `backend/` covers t
 | H15 | Docs | ✅ |
 | H16 | **Last:** Gemini key + current model name | ✅ |
 
+## Robustness plan (R-series) — done 2026-11-10
+| ID | Fix | Status |
+|----|-----|--------|
+| R1 | Git repository + commits per milestone | ✅ |
+| R2 | Admin product manager (DB is the source of truth) | ✅ |
+| R3 | Data-driven shop: search, sort, facets with counts | ✅ |
+| R4 | Stock + sold-out, no overselling | ✅ |
+| R5 | Order lifecycle (ship/deliver/cancel) + status emails | ✅ |
+| R6 | Email outbox with retries; signup email verification | ✅ |
+| R7 | Daily backups + restore script | ✅ |
+| R8 | Request ids, JSON logs, optional Sentry, graceful shutdown | ✅ |
+| R9 | Frontend split into modules; no inline scripts (strict CSP) | ✅ |
+| R10 | Browser E2E in repo + GitHub Actions CI | ✅ |
+| R11 | Dockerfile + Render blueprint; production config guard | ✅ |
+| R12 | Privacy page + "Download my data" | ✅ |
+| — | Payments (Stripe) — deliberately not done | ⬜ |
+
 ## Priority next
 
 ### B2 · Wire the storefront to the backend ⭐ — ✅ done (2026-11-10)

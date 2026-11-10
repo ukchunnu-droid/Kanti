@@ -1,4 +1,10 @@
 require('dotenv').config();
+// Production settings are checked before anything opens the database.
+if (process.env.NODE_ENV === 'production' && !process.env.APP_URL) {
+  // Reset/verification links would point at localhost — refuse rather than send broken emails.
+  console.error('APP_URL must be set in production (e.g. https://your-domain). Refusing to start.');
+  process.exit(1);
+}
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');

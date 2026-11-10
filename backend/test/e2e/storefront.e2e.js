@@ -22,6 +22,8 @@ Object.assign(process.env, {
 let browser, page, server, B;
 const problems = [];
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// E2E_SCREENSHOTS=/some/dir saves a screenshot at key steps (for reviewing the UI).
+const shot = async (name) => { if (process.env.E2E_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.E2E_SCREENSHOTS, name + '.png'), fullPage: true }); };
 
 before(async () => {
   if (!CHROME) return;
@@ -83,6 +85,7 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     assert.ok(names.length > 0 && names.every((n) => /neem/i.test(n) || true));
     assert.equal(await page.evaluate(() => document.activeElement.id), 'shopQ', 'search keeps focus while typing');
     await click('.link-btn', 'Clear filters');
+    await shot('1-shop');
     await click('#shopFacets .pill', 'Serum');
     const cats = await page.$$eval('.grid .card .cat', (els) => [...new Set(els.map((e) => e.textContent))]);
     assert.deepEqual(cats, ['Serum']);
@@ -171,10 +174,13 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     await until(() => !document.querySelector('#navAdmin').classList.contains('hidden'));
     await click('#navAdmin');
     await page.waitForSelector('.stats');
+    await shot('2-admin-overview');
     await click('.tab', 'Products');
     await page.waitForSelector('.admin-table');
+    await shot('3-admin-products');
     await click('button', '+ Add product');
     await page.click('#saveProductBtn'); await wait(80);
+    await shot('4-admin-product-form');
     const errs = await page.$$eval('.field.has-err', (els) => els.map((e) => e.dataset.f));
     assert.ok(errs.includes('name') && errs.includes('skin'));
     await fill('name', 'Saffron Glow Drops'); await fill('price', '41'); await fill('stock', '1');
@@ -215,6 +221,7 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     await click('.link-btn', 'Mark shipped');
     await page.waitForFunction((no) => [...document.querySelectorAll('.admin .order')].some((o) => o.textContent.includes(no) && /Shipped/.test(o.textContent) && /TRACK-42/.test(o.textContent)), { timeout: 8000 }, orderNo);
     assert.ok(lastMailTo('admin@kanti.test', /has shipped/), 'shipping email');
+    await shot('5-admin-orders');
 
     // hide a product → gone from the shop
     await click('.tab', 'Products');

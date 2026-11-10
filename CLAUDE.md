@@ -32,8 +32,12 @@ kanti/
 The real app is **`backend/public/index.html`** (storefront) + **`backend/public/api.js`** (client).
 - Sessions are an **httpOnly cookie** — never put tokens in localStorage. `API.isAuthed()` reads a hint cookie.
 - Sign in / up / forgot / reset are **views inside the storefront** (`go('signin')`), not separate pages.
-- **Products and prices live on the server** in `backend/src/catalog.js` (integer cents); the storefront
-  loads them from `GET /api/products`. Never price anything in the browser.
+- **Products live in the database** and are edited on the admin page (`/#admin`, only `ADMIN_EMAIL`).
+  `backend/src/catalog.js` only seeds an empty DB. Prices are integer cents; never price in the browser.
+- Frontend = `backend/public/js/*.js` (plain scripts, shared globals, no build). **No inline
+  onclick/scripts** (CSP forbids them): use `data-go` / `data-act` + add the function to `ACTIONS` in
+  `js/app.js`. Escape all data with `esc()`.
+- Tests: `npm test` (API) and `npm run test:e2e` (Chrome) — run both before committing. Git is set up.
 - Bag, quiz history and routine streak are saved to the account; DB schema changes go in
   `MIGRATIONS` in `backend/src/db.js` (append only).
 - Run `npm test` in `backend/` after backend changes. Full API + table list: `backend/README.md`.
@@ -66,4 +70,6 @@ The real app is **`backend/public/index.html`** (storefront) + **`backend/public
   `better-sqlite3` bumped to v12 (Node 20–26).
 - **Done (hardening H1–H15):** see the H-table in the backlog.
 - **Done (H16):** Gemini key set (model fallback chain, see README); real email via Gmail SMTP.
-- **Next:** E6–E12, built in `backend/public/index.html`.
+- **Done (R1–R12):** admin, data-driven shop, stock, order lifecycle, email outbox/verification,
+  backups, logging, module split + strict CSP, E2E + CI, Docker/Render, privacy. Payments not done.
+- **Next:** E6–E12 (frontend in `backend/public/js/`).
