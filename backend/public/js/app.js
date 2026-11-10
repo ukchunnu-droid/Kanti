@@ -31,7 +31,7 @@ const ACTIONS = {
   reorder: (no) => reorder(no), openOrderEmail: (no) => openOrderEmail(no), cancelOrder, resendVerification,
   // admin
   adminTab, adminEditProduct, adminCancelEdit, adminSaveProduct, adminToggleProduct, adminDeleteProduct,
-  adminOrderFilter, adminSetStatus, adminBackup, adminRetryEmails,
+  adminOrderFilter, adminSetStatus, adminBackup, adminRetryEmails, adminArtPreview,
 };
 function runAction(name, a, b, el, e) {
   const fn = Object.prototype.hasOwnProperty.call(ACTIONS, name) ? ACTIONS[name] : null;

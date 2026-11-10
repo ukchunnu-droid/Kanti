@@ -102,6 +102,8 @@ function routine(b) {
 const SLOTS = ['Cleanse', 'Tone', 'Treat', 'Moisturise', 'Protect', 'Weekly'];
 const TODS = ['AM', 'PM', 'both'];
 const CONCERNS = ['breakouts', 'dryness', 'dullness', 'sensitivity', 'fine lines'];
+const PACKAGINGS = ['pump', 'mist', 'dropper', 'jar', 'tube'];
+const TEXTURES = ['gel', 'water', 'serum', 'oil', 'cream', 'clay', 'lotion'];
 
 const slugify = (name) => text(name, 60).toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .replace(/[\s_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'product';
@@ -139,6 +141,10 @@ function productInput(b, { partial = false } = {}) {
   if (need('sourcing')) v.sourcing = text(b.sourcing, 300);
   if (need('safety')) v.safety = list(b.safety, 8, 60);
   if (need('emoji')) v.emoji = text(b.emoji, 8) || '🌿';
+  // Product illustration: '' / missing = chosen automatically from the routine step and ingredients.
+  if (has('packaging')) v.packaging = PACKAGINGS.includes(b.packaging) ? b.packaging : '';
+  if (has('texture')) v.texture = TEXTURES.includes(b.texture) ? b.texture : '';
+  if (has('liquid')) v.liquid = /^#[0-9a-fA-F]{6}$/.test(b.liquid || '') ? b.liquid : '';
   if (need('bg')) v.bg = /^#[0-9a-fA-F]{6}$/.test(b.bg || '') ? b.bg : '#E7EFE9';
   if (has('stock')) {
     if (b.stock === null || b.stock === '') v.stock = null; // not tracked

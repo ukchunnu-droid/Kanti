@@ -112,7 +112,7 @@ function adminProductsHTML() {
       <thead><tr><th></th><th>Product</th><th>Category</th><th>Step</th><th class="num">Price</th><th class="num">Stock</th><th>Status</th><th></th></tr></thead>
       <tbody>${list.map((p) => `
         <tr class="${p.active ? '' : 'muted-row'}">
-          <td><span class="oi-emoji" style="background:${esc(p.bg)}">${esc(p.emoji)}</span></td>
+          <td><span class="oi-emoji" style="background:${esc(p.bg)}">${productArt(p, 'thumb')}</span></td>
           <td><b>${esc(p.name)}</b><br><small>${esc(p.id)}${p.orders ? ` · in ${p.orders} order${p.orders === 1 ? '' : 's'}` : ''}</small></td>
           <td>${esc(p.cat)}</td><td>${esc(p.slot)}</td>
           <td class="num">${money(p.price)}</td>
@@ -130,7 +130,7 @@ function adminProductsHTML() {
 function productFormHTML() {
   const id = state.admin.editing;
   const p = id === 'new'
-    ? { name: '', price: '', cat: '', slot: 'Treat', tod: 'both', skin: [], dosha: [], concern: [], ings: [], benefit: '', desc: '', sourcing: '', safety: [], emoji: '🌿', bg: '#E7EFE9', stock: 25, active: true }
+    ? { name: '', price: '', cat: '', slot: 'Treat', tod: 'both', skin: [], dosha: [], concern: [], ings: [], benefit: '', desc: '', sourcing: '', safety: [], bg: '#E7EFE9', stock: 25, active: true, packaging: '', texture: '', liquid: '' }
     : state.admin.products.find((x) => x.id === id);
   if (!p) { state.admin.editing = null; return adminProductsHTML(); }
   const checks = (name, options, cur, label) => `<fieldset class="field checks" data-f="${name}"><legend>${label}</legend>
@@ -141,7 +141,7 @@ function productFormHTML() {
     <div class="admin-bar"><h3 style="margin:0">${id === 'new' ? 'Add a product' : 'Edit ' + esc(p.name)}</h3>
       <button class="btn btn-ghost btn-sm" data-act="adminCancelEdit">Cancel</button></div>
     <div class="form-msg" id="formMsg" role="alert"></div>
-    <form class="product-form" novalidate data-submit="adminSaveProduct">
+    <form class="product-form" novalidate data-submit="adminSaveProduct" data-input="adminArtPreview" data-change="adminArtPreview">
       <div class="pf-grid">
         <div>
           ${fieldHTML('name', 'Name', p.name, 'required maxlength="80"')}
@@ -167,10 +167,24 @@ function productFormHTML() {
           <div class="field" data-f="desc"><label for="f_desc">Description</label><textarea id="f_desc" rows="4" maxlength="800">${esc(p.desc)}</textarea><div class="field-err" id="e_desc"></div></div>
           ${fieldHTML('sourcing', 'Sourcing', p.sourcing, 'maxlength="300"', true)}
           ${fieldHTML('safety', 'Safety notes (comma-separated)', (p.safety || []).join(', '), 'placeholder="Fragrance-free, Pregnancy-safe"', true)}
-          <div class="field-row">
-            ${fieldHTML('emoji', 'Icon (emoji)', p.emoji, 'maxlength="8"')}
-            ${fieldHTML('bg', 'Card colour', p.bg, 'type="color"')}
-          </div>
+          <fieldset class="field art-fields"><legend>Product illustration</legend>
+            <div class="art-row">
+              <div class="art-preview" id="artPreview" style="background:${esc(p.bg)}">${productArt(p, 'modal')}</div>
+              <div class="art-controls">
+                <div class="field"><label for="f_packaging">Packaging</label>
+                  <select id="f_packaging"><option value="">Automatic (from routine step)</option>
+                  ${['pump', 'mist', 'dropper', 'jar', 'tube'].map((k) => `<option value="${k}" ${p.packaging === k ? 'selected' : ''}>${{ pump: 'Pump bottle', mist: 'Mist spray', dropper: 'Dropper bottle', jar: 'Jar', tube: 'Tube' }[k]}</option>`).join('')}</select></div>
+                <div class="field"><label for="f_texture">What’s inside</label>
+                  <select id="f_texture"><option value="">Automatic</option>
+                  ${['gel', 'water', 'serum', 'oil', 'cream', 'clay', 'lotion'].map((k) => `<option value="${k}" ${p.texture === k ? 'selected' : ''}>${{ gel: 'Gel (slow bubbles)', water: 'Water / toner (petals & bubbles)', serum: 'Serum (sparkles)', oil: 'Oil (golden droplets)', cream: 'Cream (swirl)', clay: 'Clay (grains)', lotion: 'Lotion (shimmer)' }[k]}</option>`).join('')}</select></div>
+                <div class="field-row">
+                  <div class="field"><label for="f_liquid">Liquid colour</label><input id="f_liquid" type="color" value="${esc(p.liquid || artFor(p).liquid)}"></div>
+                  ${fieldHTML('bg', 'Card colour', p.bg, 'type="color"')}
+                </div>
+                <label class="check"><input type="checkbox" id="f_liquidAuto" ${p.liquid ? '' : 'checked'}> Colour from the first ingredient</label>
+              </div>
+            </div>
+          </fieldset>
           <label class="check"><input type="checkbox" id="f_active" ${p.active ? 'checked' : ''}> Live in the shop</label>
         </div>
       </div>
@@ -191,8 +205,20 @@ function readProductForm() {
     category: fval('category'), slot: $('#f_slot').value, tod: $('#f_tod').value,
     skin: checked('skin'), dosha: checked('dosha'), concern: checked('concern'),
     ings: fval('ings'), benefit: fval('benefit'), desc: $('#f_desc').value.trim(), sourcing: fval('sourcing'),
-    safety: fval('safety'), emoji: fval('emoji'), bg: $('#f_bg').value, active: $('#f_active').checked,
+    safety: fval('safety'), bg: $('#f_bg').value, active: $('#f_active').checked,
+    packaging: $('#f_packaging').value, texture: $('#f_texture').value,
+    liquid: $('#f_liquidAuto').checked ? '' : $('#f_liquid').value,
   };
+}
+// Redraws the bottle as the admin edits (ingredients, step, packaging, colours…).
+function adminArtPreview(_v, _b, _el, e) {
+  const box = $('#artPreview'); if (!box) return;
+  if (e && e.target && e.target.id === 'f_liquid') $('#f_liquidAuto').checked = false; // picking a colour = custom
+  const d = readProductForm();
+  const preview = { ...d, id: 'preview', cat: d.category, ings: String(d.ings).split(',').map((x) => x.trim()).filter(Boolean) };
+  box.style.background = d.bg;
+  box.innerHTML = productArt(preview, 'modal');
+  if ($('#f_liquidAuto').checked) $('#f_liquid').value = artFor(preview).liquid;
 }
 async function adminSaveProduct() {
   const d = readProductForm(), errs = {};

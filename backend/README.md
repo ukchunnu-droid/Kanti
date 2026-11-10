@@ -75,6 +75,7 @@ see it in **Account**, with the confirmation email link, reorder, quiz history a
 |---|---|---|
 | Storefront | `public/index.html`, `public/css/kanti.css`, `public/js/*.js`, `public/api.js` | Plain scripts, no build step. No inline scripts/handlers: elements use `data-go` / `data-act` attributes handled in `js/app.js`. |
 | Admin page | `public/js/admin.js` | Only shown to `ADMIN_EMAIL`; the server checks every admin request. |
+| Product art | `public/js/art.js` + `.pa-*` in `kanti.css` | Animated SVG packaging drawn from the data: packaging from the routine step, contents from the product type, colour from the first ingredient. Admins can override all three (live preview). Thumbnails are still; reduced-motion users see no animation. |
 | Server & routes | `src/server.js` | Express. Security headers, rate limits, JSON errors. |
 | Sessions | `src/auth.js` | httpOnly cookie (JWT). Changing/resetting a password signs out other devices. |
 | Validation | `src/validate.js` | Every input is checked and length-limited on the server. |

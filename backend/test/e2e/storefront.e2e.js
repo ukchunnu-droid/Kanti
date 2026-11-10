@@ -76,6 +76,10 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
   await t.test('shop is built from the product data', async () => {
     await page.goto(B + '/#shop', { waitUntil: 'networkidle0' });
     assert.equal(await count('.grid .card'), 13);
+    assert.equal(await count('.grid .card .card-img svg.pa'), 13, 'every product has its illustrated bottle');
+    const kinds = await page.$$eval('.grid .card svg.pa', (els) => [...new Set(els.map((e) => [...e.classList].find((c) => /^pa-(pump|mist|dropper|jar|tube)$/.test(c))))].sort());
+    assert.deepEqual(kinds, ['pa-dropper', 'pa-jar', 'pa-mist', 'pa-pump', 'pa-tube']);
+    assert.equal(await count('.grid .card svg.pa-still'), 0, 'shop bottles are animated');
     assert.match(await text('.shop-count'), /13 products/);
     const facetLabels = await page.$$eval('#shopFacets .label', (els) => els.map((e) => e.textContent));
     assert.deepEqual(facetLabels, ['Category', 'Skin type', 'Dosha', 'Goal']);
@@ -140,6 +144,7 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     await click('button', 'View my orders');
     await page.waitForSelector('.order');
     assert.match(await text('.order .status-pill'), /placed/i);
+    assert.ok(await count('.order .oi-emoji svg.pa-still') >= 5, 'order history shows still bottle thumbnails');
     await click('.link-btn', 'Cancel order');
     await until(() => document.querySelector('.order .status-pill') && /cancelled/i.test(document.querySelector('.order .status-pill').textContent));
     assert.ok(lastMailTo(email, /was cancelled/), 'cancellation email');
@@ -187,6 +192,12 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     await fill('category', 'Face Oil'); await page.select('#f_slot', 'Treat');
     await page.click('input[name=skin][value=dry]'); await page.click('input[name=dosha][value=vata]');
     await fill('ings', 'Saffron, Almond oil'); await fill('benefit', 'A golden overnight glow.');
+    assert.equal(await count('#artPreview svg.pa-dropper'), 1, 'Treat step → dropper bottle by default');
+    await page.select('#f_packaging', 'jar');
+    await until(() => document.querySelector('#artPreview svg.pa-jar'));
+    await page.select('#f_packaging', '');
+    await until(() => document.querySelector('#artPreview svg.pa-dropper'));
+    assert.equal(await page.$eval('#f_liquid', (e) => e.value.toLowerCase()), '#e39a3b', 'colour picked from saffron');
     await page.click('#saveProductBtn');
     await page.waitForFunction(() => [...document.querySelectorAll('.admin-table b')].some((b) => b.textContent === 'Saffron Glow Drops'), { timeout: 8000 });
 

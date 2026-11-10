@@ -120,7 +120,7 @@ function orderView(o){
   const u=session.user||{}, st=o.ship_to||{};
   return {no:o.order_no, status:o.status||'placed', date:o.date, email:u.email||'', tracking:o.tracking_no||null,
     name:splitName(st.name||u.name).first||'there',
-    items:(o.items||[]).map(it=>{const p=prod(it.id)||{};return {id:it.id,name:it.name,qty:Number(it.qty),price:Number(it.price),emoji:p.emoji||'🌿',bg:p.bg||'var(--surface-2)'};}),
+    items:(o.items||[]).map(it=>{const p=prod(it.id)||null;return {id:it.id,name:it.name,qty:Number(it.qty),price:Number(it.price),art:p?productArt(p,'thumb'):'🌿',bg:(p&&p.bg)||'var(--surface-2)'};}),
     subtotal:o.subtotal, shipping:o.shipping, total:o.total, ship_to:st, previewUrl:o.email_preview_url||null};
 }
 function addressLine(s){

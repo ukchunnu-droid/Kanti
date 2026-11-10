@@ -104,7 +104,7 @@ function renderDrawer(){
   }
   body.innerHTML=state.cart.map(c=>{const p=prod(c.id);return `
     <div class="cart-line">
-      <div class="thumb" style="background:${esc(p.bg)}">${esc(p.emoji)}</div>
+      <div class="thumb" style="background:${esc(p.bg)}">${productArt(p, 'thumb')}</div>
       <div class="cl-body">
         <b>${esc(p.name)}</b><small>${money(p.price)}</small>
         <div class="qty">
@@ -129,7 +129,7 @@ function openModal(id){
   $('#modal').innerHTML=`
     <button class="modal-close" data-act="closeModal">✕</button>
     <div class="modal-top">
-      <div class="modal-img" style="background:${esc(p.bg)}">${esc(p.emoji)}</div>
+      <div class="modal-img" style="background:${esc(p.bg)}">${productArt(p, 'modal')}</div>
       <div>
         <div class="cat">${esc(p.cat)} ${stockBadge(p)}</div>
         <h2>${esc(p.name)}</h2>

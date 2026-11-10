@@ -66,7 +66,7 @@ function cardHTML(p) {
   const flag = (p.safety || []).find((s) => /safe|free/i.test(s));
   const out = soldOut(p);
   return `<div class="card ${out ? 'is-out' : ''}" data-act="openModal" data-arg="${esc(p.id)}" tabindex="0" role="button" aria-label="${esc(p.name)} — details">
-    <div class="card-img" style="background:${esc(p.bg)}">${esc(p.emoji)}${flag ? `<span class="card-flag">${esc(flag)}</span>` : ''}${stockBadge(p)}</div>
+    <div class="card-img" style="background:${esc(p.bg)}">${productArt(p, 'card')}${flag ? `<span class="card-flag">${esc(flag)}</span>` : ''}${stockBadge(p)}</div>
     <div class="card-body">
       <div class="cat">${esc(p.cat)}</div>
       <h3>${esc(p.name)}</h3>

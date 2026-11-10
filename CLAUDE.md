@@ -37,6 +37,8 @@ The real app is **`backend/public/index.html`** (storefront) + **`backend/public
 - Frontend = `backend/public/js/*.js` (plain scripts, shared globals, no build). **No inline
   onclick/scripts** (CSP forbids them): use `data-go` / `data-act` + add the function to `ACTIONS` in
   `js/app.js`. Escape all data with `esc()`.
+- Product images are **generated SVG bottles** (`backend/public/js/art.js`), not emoji or photos:
+  packaging/texture/liquid colour come from the product data (admin can override). Keep it calm.
 - Tests: `npm test` (API) and `npm run test:e2e` (Chrome) — run both before committing. Git is set up.
 - Bag, quiz history and routine streak are saved to the account; DB schema changes go in
   `MIGRATIONS` in `backend/src/db.js` (append only).

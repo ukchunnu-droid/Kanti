@@ -506,3 +506,54 @@ input[readonly]{opacity:.75;cursor:not-allowed}
 @media (max-width:860px){
   .pf-grid,.acct-grid.two{grid-template-columns:1fr}
 }
+
+/* ---------- Product art (js/art.js) ---------- */
+.pa{display:block;overflow:visible;width:auto;max-width:100%}
+.card-img .pa{height:136px}
+.modal-img .pa{height:172px}
+.rs-thumb .pa{height:52px}
+.cart-line .thumb .pa{height:44px}
+.oi-emoji .pa{height:24px}
+@media (max-width:860px){.modal-img .pa{height:128px}}
+@media (max-width:540px){.card-img .pa{height:100px}}
+.pa-brand{font-family:var(--font-display);font-size:7.2px;font-weight:600;fill:#20453B;letter-spacing:.02em}
+.pa-cat{font-family:var(--font-body);font-size:3.6px;font-weight:700;fill:#B8862B;letter-spacing:.14em}
+.pa-mist .pa-brand,.pa-tube .pa-brand{font-size:6.2px}
+.pa-bottle{transform-box:view-box;transform-origin:60px 140px;animation:pa-breathe 6s ease-in-out infinite}
+.pa-wave{animation:pa-wave 3.2s linear infinite}
+.pa-wave2{animation-duration:4.6s;animation-direction:reverse}
+.pa-oil .pa-wave{animation-duration:6s}
+.pa-bubble{animation:pa-rise var(--dur,4s) ease-in var(--delay,0s) infinite;opacity:0}
+.pa-bob{animation:pa-bob var(--dur,5s) ease-in-out var(--delay,0s) infinite}
+.pa-float{transform-box:fill-box;transform-origin:center;animation:pa-float var(--dur,7s) ease-in-out var(--delay,0s) infinite}
+.pa-twinkle{animation:pa-twinkle 2.8s ease-in-out var(--delay,0s) infinite}
+.pa-sheen{animation:pa-sheen 5.5s ease-in-out infinite}
+.pa-swirl{transform-box:fill-box;transform-origin:center;animation:pa-spin 14s linear infinite}
+.pa-swirl.slow{animation:pa-sway 7s ease-in-out infinite}
+.pa-grain{animation:pa-grain 4s ease-in-out var(--delay,0s) infinite}
+.pa-lid{transform-box:fill-box;transform-origin:15% 100%;animation:pa-lid 5s ease-in-out infinite}
+.pa-spray circle{fill:rgba(255,255,255,.9);animation:pa-spray 3.6s ease-out infinite;animation-delay:calc(var(--i) * .08s);opacity:0}
+/* hovering a product makes it a little livelier */
+.card:hover .pa-bottle,.modal-img .pa-bottle{animation-duration:3.5s}
+.card:hover .pa-lid{animation-duration:2.6s}
+@keyframes pa-breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@keyframes pa-wave{to{transform:translateX(-15px)}}
+@keyframes pa-rise{0%{transform:translateY(0) translateX(0);opacity:0}12%{opacity:.9}50%{transform:translateY(calc(var(--rise) * .5)) translateX(1.5px)}90%{opacity:.8}100%{transform:translateY(var(--rise)) translateX(-1px);opacity:0}}
+@keyframes pa-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes pa-float{0%,100%{transform:translate(0,0) rotate(-12deg)}33%{transform:translate(3px,-4px) rotate(10deg)}66%{transform:translate(-2px,-2px) rotate(-4deg)}}
+@keyframes pa-twinkle{0%,100%{opacity:.1;transform:scale(.6)}50%{opacity:1;transform:scale(1)}}
+@keyframes pa-sheen{0%,20%{transform:skewX(-18deg) translateX(0)}60%,100%{transform:skewX(-18deg) translateX(90px)}}
+@keyframes pa-spin{to{transform:rotate(360deg)}}
+@keyframes pa-sway{0%,100%{transform:translateX(-3px)}50%{transform:translateX(3px)}}
+@keyframes pa-grain{0%,100%{opacity:.35}50%{opacity:.85}}
+@keyframes pa-lid{0%,55%,100%{transform:translateY(0) rotate(0)}70%,85%{transform:translateY(-9px) rotate(-7deg)}}
+@keyframes pa-spray{0%,62%{opacity:0;transform:translateX(0)}70%{opacity:.9}100%{opacity:0;transform:translateX(-10px)}}
+.pa-still *,.pa-still{animation:none !important}
+@media (prefers-reduced-motion:reduce){.pa *,.pa{animation:none !important}.pa-bubble,.pa-spray circle{opacity:.6}}
+.art-fields{border:none;padding:0;margin:0 0 12px}
+.art-fields legend{font-size:14px;font-weight:600;margin-bottom:8px;padding:0}
+.art-row{display:flex;gap:16px;align-items:flex-start}
+.art-preview{width:130px;height:190px;border-radius:14px;display:grid;place-items:center;flex:none;border:1px solid var(--line)}
+.art-preview .pa{height:165px}
+.art-controls{flex:1;min-width:0}
+@media (max-width:540px){.art-row{flex-direction:column}}

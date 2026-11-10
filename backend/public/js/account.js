@@ -422,7 +422,7 @@ function renderAccount(){
             <div class="order-total">${money(o.total)}</div>
           </div>
           <div class="order-items">
-            ${o.items.map(it=>`<span class="oi"><span class="oi-emoji" style="background:${esc(it.bg)}">${esc(it.emoji)}</span>${esc(it.name)} ×${it.qty}</span>`).join('')}
+            ${o.items.map(it=>`<span class="oi"><span class="oi-emoji" style="background:${esc(it.bg)}">${it.art}</span>${esc(it.name)} ×${it.qty}</span>`).join('')}
           </div>
           ${addressLine(o.ship_to)?`<div class="order-ship">${o.status==='placed'?'Shipping to':o.status==='cancelled'?'Was going to':'Shipped to'} ${addressLine(o.ship_to)}</div>`:''}
           ${o.tracking?`<div class="order-ship">Tracking: <b>${esc(o.tracking)}</b></div>`:''}

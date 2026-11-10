@@ -296,7 +296,7 @@ function routineStepHTML(s,n,tod,idx,checkable){
     : `<div class="step-no">${n}</div>`;
   return `<div class="routine-step ${checked?'done':''}">
     ${lead}
-    <div class="rs-thumb" style="background:${esc(p.bg)}">${esc(p.emoji)}</div>
+    <div class="rs-thumb" style="background:${esc(p.bg)}">${productArt(p, 'thumb')}</div>
     <div class="rs-body">
       <span class="slot">${s.slot}</span>
       <b>${esc(p.name)}</b>

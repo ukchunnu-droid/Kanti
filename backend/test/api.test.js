@@ -376,6 +376,10 @@ test('admin creates, edits, hides and shows a product; shop reflects it', async 
   assert.deepEqual(p.dosha, ['pitta', 'kapha'], 'comma text → list');
   assert.deepEqual(p.concern, ['breakouts'], 'unknown concerns dropped');
   assert.deepEqual(p.ings, ['Tulsi', 'Rose water']);
+  const art = (await admin('PATCH', `/api/admin/products/${p.id}`, { packaging: 'jar', texture: 'oil', liquid: '#E39A3B' })).data.product;
+  assert.deepEqual([art.packaging, art.texture, art.liquid], ['jar', 'oil', '#E39A3B']);
+  const junk = (await admin('PATCH', `/api/admin/products/${p.id}`, { packaging: 'barrel', texture: '<x>', liquid: 'red' })).data.product;
+  assert.deepEqual([junk.packaging, junk.texture, junk.liquid], ['', '', ''], 'unknown values fall back to automatic');
   assert.equal(p.cat, 'Mist');
   const sameCat = (await admin('POST', '/api/admin/products', { ...NEW_PRODUCT, name: 'Case Test', category: 'face OIL' })).data.product;
   const existing = db.listProducts().find((x) => x.id === 'p10').cat;
