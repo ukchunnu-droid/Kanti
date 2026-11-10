@@ -98,6 +98,63 @@ function routine(b) {
   return { routine: { date: b.date, done, streak, lastComplete } };
 }
 
+// ---------- Admin: products ----------
+const SLOTS = ['Cleanse', 'Tone', 'Treat', 'Moisturise', 'Protect', 'Weekly'];
+const TODS = ['AM', 'PM', 'both'];
+const CONCERNS = ['breakouts', 'dryness', 'dullness', 'sensitivity', 'fine lines'];
+
+const slugify = (name) => text(name, 60).toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
+  .replace(/[\s_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'product';
+
+// Lists may arrive as arrays or comma-separated text (from the admin form).
+function list(x, maxItems, maxLen) {
+  const arr = Array.isArray(x) ? x : typeof x === 'string' ? x.split(',') : [];
+  return arr.map((v) => text(v, maxLen)).filter(Boolean).slice(0, maxItems);
+}
+function pick(x, allowed) {
+  return [...new Set(list(x, allowed.length, 20).map((v) => v.toLowerCase()))].filter((v) => allowed.includes(v));
+}
+
+// Full or partial (`partial: true`) product input → { value } or { error }.
+function productInput(b, { partial = false } = {}) {
+  const v = {};
+  const has = (k) => k in b && b[k] !== undefined;
+  const need = (k) => !partial || has(k);
+
+  if (need('name')) { v.name = text(b.name, 80); if (!v.name) return { error: 'Give the product a name.' }; }
+  if (need('price')) {
+    const price = Number(b.price);
+    if (!Number.isFinite(price) || price < 0 || price > 1000) return { error: 'Price must be between $0 and $1000.' };
+    v.price_cents = Math.round(price * 100);
+  }
+  if (need('category')) { v.category = text(b.category, 40); if (!v.category) return { error: 'Add a category (e.g. Serum).' }; }
+  if (need('slot')) { if (!SLOTS.includes(b.slot)) return { error: `Routine step must be one of: ${SLOTS.join(', ')}.` }; v.slot = b.slot; }
+  if (need('tod')) { v.tod = TODS.includes(b.tod) ? b.tod : 'both'; }
+  if (need('skin')) { v.skin = pick(b.skin, SKIN_TYPES); if (!v.skin.length) return { error: 'Choose at least one skin type.' }; }
+  if (need('dosha')) { v.dosha = pick(b.dosha, DOSHAS); if (!v.dosha.length) return { error: 'Choose at least one dosha.' }; }
+  if (has('concern')) v.concern = pick(b.concern, CONCERNS);
+  if (need('ings')) { v.ings = list(b.ings, 12, 40); if (!v.ings.length) return { error: 'List at least one key ingredient.' }; }
+  if (need('benefit')) v.benefit = text(b.benefit, 160);
+  if (need('desc')) v.desc = text(b.desc, 800);
+  if (need('sourcing')) v.sourcing = text(b.sourcing, 300);
+  if (need('safety')) v.safety = list(b.safety, 8, 60);
+  if (need('emoji')) v.emoji = text(b.emoji, 8) || '🌿';
+  if (need('bg')) v.bg = /^#[0-9a-fA-F]{6}$/.test(b.bg || '') ? b.bg : '#E7EFE9';
+  if (has('stock')) {
+    if (b.stock === null || b.stock === '') v.stock = null; // not tracked
+    else {
+      const n = Number(b.stock);
+      if (!Number.isInteger(n) || n < 0 || n > 100000) return { error: 'Stock must be a whole number (or blank for “not tracked”).' };
+      v.stock = n;
+    }
+  } else if (!partial) v.stock = null;
+  if (has('active')) v.active = b.active === true || b.active === 'true' || b.active === 1;
+  else if (!partial) v.active = true;
+  if (has('sort_order')) { const n = Number(b.sort_order); if (Number.isInteger(n)) v.sort_order = n; }
+  return { value: v };
+}
+
 module.exports = {
-  text, email, isEmail, passwordError, profileFields, shipTo, cartItems, quizResult, routine, SKIN_TYPES, DOSHAS,
+  text, email, isEmail, passwordError, profileFields, shipTo, cartItems, quizResult, routine, productInput, slugify,
+  SKIN_TYPES, DOSHAS, SLOTS, TODS, CONCERNS,
 };

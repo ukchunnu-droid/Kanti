@@ -1,3 +1,4 @@
+const log = require('./log');
 // Turns raw quiz answers into a skin profile.
 // - With GEMINI_API_KEY set: Google Gemini reads the answers and returns a
 //   dynamic, reasoned classification (skin type, dosha, ingredients, rationale).
@@ -112,10 +113,10 @@ async function classifyCore(answers) {
         ]);
         return { ...result, model: modelName };
       } catch (e) {
-        console.warn(`[ai] ${modelName} failed:`, e.message.replace(/^.*?\]: /, '').slice(0, 160));
+        log.warn('ai: model failed, trying the next', { model: modelName, error: e.message.replace(/^.*?\]: /, '').slice(0, 160) });
       }
     }
-    console.warn('[ai] all Gemini models failed — using the rule-based classifier');
+    log.warn('ai: all Gemini models failed — using the rule-based classifier');
   }
   return ruleBasedClassify(answers);
 }

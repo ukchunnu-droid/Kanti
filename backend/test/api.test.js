@@ -13,11 +13,18 @@ Object.assign(process.env, {
   EMAIL_TRANSPORT: 'json',
   RATE_SIGNUP_MAX: '1000',
   RATE_LOGIN_MAX: '5',
+  RATE_VERIFY_MAX: '100',
+  RATE_RESET_MAX: '100',
   GEMINI_API_KEY: '',
+  ADMIN_EMAIL: 'admin@kanti.test',
+  BACKUP_DIR: path.join(tmp, 'backups'),
+  BACKUP_KEEP: '2',
+  LOG_LEVEL: 'silent',
 });
 
 const app = require('../src/server');
-const { outbox } = require('../src/email');
+const { outbox, testHooks, processOutbox } = require('../src/email');
+const db = require('../src/db');
 let server, base;
 
 before(async () => {
@@ -156,8 +163,7 @@ test('delete account requires the password and removes everything', async () => 
   assert.equal((await c('DELETE', '/api/me', { password: 'longenough1' })).status, 200);
   assert.equal((await c('GET', '/api/me')).status, 401);
   assert.equal((await client()('POST', '/api/auth/login', { email, password: 'longenough1' })).status, 401);
-  const db = require('../src/db').raw;
-  assert.equal(db.prepare('SELECT count(*) n FROM order_items WHERE order_id NOT IN (SELECT id FROM orders)').get().n, 0);
+  assert.equal(db.raw.prepare('SELECT count(*) n FROM order_items WHERE order_id NOT IN (SELECT id FROM orders)').get().n, 0);
 });
 
 // ---------- H5/H6/H7: catalogue & orders ----------
@@ -308,7 +314,7 @@ test('forgot/reset password: one-time link, signs in, old password stops working
   const before = outbox.length;
   assert.equal((await anon('POST', '/api/auth/forgot', { email })).status, 200);
   await new Promise((r) => setTimeout(r, 100));
-  const mail = outbox.slice(before).find((m) => m.to === email.toLowerCase());
+  const mail = outbox.slice(before).find((m) => m.to === email.toLowerCase() && /Reset/.test(m.subject));
   const token = mail.html.match(/#reset=([a-f0-9]{64})/)[1];
 
   assert.equal((await anon('POST', '/api/auth/reset', { token, password: 'short' })).status, 400);
@@ -325,4 +331,209 @@ test('old standalone pages redirect into the storefront', async () => {
   const r = await fetch(base + '/signin.html?next=checkout', { redirect: 'manual' });
   assert.equal(r.status, 301);
   assert.equal(r.headers.get('location'), '/#signin?next=checkout');
+});
+
+
+// =====================================================================
+// Admin, stock, order lifecycle, email outbox, verification, privacy, backups
+// =====================================================================
+let adminC = null; // one signed-in admin session, reused (login is rate limited)
+async function adminClient() {
+  if (adminC) return adminC;
+  const c = client();
+  let r = await c('POST', '/api/auth/login', { email: 'admin@kanti.test', password: 'adminpass123' });
+  if (r.status !== 200) r = await c('POST', '/api/auth/signup', { name: 'Store Admin', email: 'admin@kanti.test', password: 'adminpass123' });
+  assert.equal(r.data.user.is_admin, true);
+  adminC = c;
+  return c;
+}
+const NEW_PRODUCT = {
+  name: 'Tulsi Face Mist', price: '14.50', category: 'Mist', slot: 'Tone', tod: 'both',
+  skin: ['oily', 'normal'], dosha: 'pitta, kapha', concern: ['breakouts', 'made-up'],
+  ings: 'Tulsi, Rose water', benefit: 'A cooling refresh.', desc: 'Long text', sourcing: 'Kerala',
+  safety: 'Alcohol-free', emoji: '🌱', bg: '#E7EFE9', stock: 3,
+};
+
+test('admin API is closed to customers and signed-out visitors', async () => {
+  const { c } = await newUser();
+  assert.equal((await c('GET', '/api/me')).data.user.is_admin, false);
+  for (const [m, u] of [['GET', '/api/admin/products'], ['POST', '/api/admin/products'], ['GET', '/api/admin/orders'], ['GET', '/api/admin/stats']]) {
+    assert.equal((await c(m, u, m === 'POST' ? NEW_PRODUCT : undefined)).status, 403, `${m} ${u} as customer`);
+    assert.equal((await client()(m, u)).status, 401, `${m} ${u} signed out`);
+  }
+});
+
+test('admin creates, edits, hides and shows a product; shop reflects it', async () => {
+  const admin = await adminClient();
+  const bad = await admin('POST', '/api/admin/products', { ...NEW_PRODUCT, skin: [] });
+  assert.equal(bad.status, 400);
+  assert.equal((await admin('POST', '/api/admin/products', { ...NEW_PRODUCT, price: -1 })).status, 400);
+  const r = await admin('POST', '/api/admin/products', NEW_PRODUCT);
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  const p = r.data.product;
+  assert.equal(p.id, 'tulsi-face-mist');
+  assert.equal(p.price_cents, 1450);
+  assert.deepEqual(p.dosha, ['pitta', 'kapha'], 'comma text → list');
+  assert.deepEqual(p.concern, ['breakouts'], 'unknown concerns dropped');
+  assert.deepEqual(p.ings, ['Tulsi', 'Rose water']);
+  assert.equal(p.cat, 'Mist');
+  assert.equal((await admin('POST', '/api/admin/products', NEW_PRODUCT)).data.product.id, 'tulsi-face-mist-2', 'unique ids');
+
+  let shop = (await (await fetch(base + '/api/products')).json()).products;
+  assert.ok(shop.some((x) => x.id === p.id), 'new product in the shop');
+
+  const edited = (await admin('PATCH', `/api/admin/products/${p.id}`, { price: 16, active: false })).data.product;
+  assert.equal(edited.price_cents, 1600);
+  assert.equal(edited.name, 'Tulsi Face Mist', 'partial edit keeps other fields');
+  shop = (await (await fetch(base + '/api/products')).json()).products;
+  assert.ok(!shop.some((x) => x.id === p.id), 'hidden products leave the shop');
+  const all = (await admin('GET', '/api/admin/products')).data.products;
+  assert.ok(all.find((x) => x.id === p.id && x.active === false), 'admin still sees hidden ones');
+
+  // hidden products can't be ordered or bagged
+  const { c } = await newUser();
+  assert.equal((await c('POST', '/api/orders', { items: [{ id: p.id, qty: 1 }], ship_to: SHIP })).status, 400);
+  await admin('PATCH', `/api/admin/products/${p.id}`, { active: true });
+  assert.equal((await c('POST', '/api/orders', { items: [{ id: p.id, qty: 1 }], ship_to: SHIP })).status, 201);
+});
+
+test('deleting a product that was ordered archives it; an unused one is removed', async () => {
+  const admin = await adminClient();
+  const used = (await admin('POST', '/api/admin/products', { ...NEW_PRODUCT, name: 'Used Product' })).data.product;
+  const unused = (await admin('POST', '/api/admin/products', { ...NEW_PRODUCT, name: 'Unused Product' })).data.product;
+  const { c } = await newUser();
+  const no = (await c('POST', '/api/orders', { items: [{ id: used.id, qty: 1 }], ship_to: SHIP })).data.order.order_no;
+  assert.deepEqual((await admin('DELETE', `/api/admin/products/${used.id}`)).data, { archived: true });
+  assert.deepEqual((await admin('DELETE', `/api/admin/products/${unused.id}`)).data, { deleted: true });
+  assert.equal((await admin('DELETE', `/api/admin/products/${unused.id}`)).status, 404);
+  assert.equal((await c('GET', '/api/orders/' + no)).data.order.items[0].name, 'Used Product', 'history intact');
+});
+
+test('stock: decremented by orders, never oversold, restored by cancelling', async () => {
+  const admin = await adminClient();
+  const p = (await admin('POST', '/api/admin/products', { ...NEW_PRODUCT, name: 'Limited Balm', stock: 2 })).data.product;
+  const a = await newUser();
+  const b = await newUser();
+  const over = await a.c('POST', '/api/orders', { items: [{ id: p.id, qty: 3 }], ship_to: SHIP });
+  assert.equal(over.status, 409);
+  assert.match(over.data.error, /Only 2/);
+  // two shoppers race for the last 2
+  const [r1, r2] = await Promise.all([
+    a.c('POST', '/api/orders', { items: [{ id: p.id, qty: 2 }], ship_to: SHIP }),
+    b.c('POST', '/api/orders', { items: [{ id: p.id, qty: 2 }], ship_to: SHIP }),
+  ]);
+  assert.deepEqual([r1.status, r2.status].sort(), [201, 409], 'exactly one wins');
+  assert.equal(db.getProduct(p.id).stock, 0);
+  const winner = r1.status === 201 ? a : b;
+  const no = (r1.status === 201 ? r1 : r2).data.order.order_no;
+  const sold = await (r1.status === 201 ? b : a).c('POST', '/api/orders', { items: [{ id: p.id, qty: 1 }], ship_to: SHIP });
+  assert.match(sold.data.error, /sold out/);
+  assert.equal((await winner.c('POST', `/api/orders/${no}/cancel`)).data.order.status, 'cancelled');
+  assert.equal(db.getProduct(p.id).stock, 2, 'stock back on the shelf');
+  assert.equal((await winner.c('POST', `/api/orders/${no}/cancel`)).status, 409, 'cancel once');
+  // untracked stock (blank) is unlimited
+  const u = (await admin('POST', '/api/admin/products', { ...NEW_PRODUCT, name: 'Untracked', stock: '' })).data.product;
+  assert.equal(u.stock, null);
+  assert.equal((await a.c('POST', '/api/orders', { items: [{ id: u.id, qty: 20 }], ship_to: SHIP })).status, 201);
+});
+
+test('order lifecycle: admin ships with tracking (emails customer), invalid moves rejected', async () => {
+  const admin = await adminClient();
+  const { c, email } = await newUser();
+  const no = (await c('POST', '/api/orders', { items: [{ id: 'p3', qty: 1 }], ship_to: SHIP })).data.order.order_no;
+  const list = (await admin('GET', '/api/admin/orders?status=placed')).data.orders;
+  assert.ok(list.find((o) => o.order_no === no && o.customer.email === email.toLowerCase()));
+  assert.equal((await admin('PATCH', `/api/admin/orders/${no}`, { status: 'delivered' })).status, 409, 'placed → delivered not allowed');
+  const before = outbox.length;
+  const shipped = (await admin('PATCH', `/api/admin/orders/${no}`, { status: 'shipped', tracking_no: 'TRK123' })).data.order;
+  assert.equal(shipped.status, 'shipped');
+  assert.equal(shipped.tracking_no, 'TRK123');
+  await new Promise((r) => setTimeout(r, 50));
+  const mail = outbox.slice(before).find((m) => /has shipped/.test(m.subject));
+  assert.ok(mail && /TRK123/.test(mail.html), 'shipping email with tracking');
+  assert.equal((await c('POST', `/api/orders/${no}/cancel`)).status, 409, "can't cancel after shipping");
+  assert.equal((await admin('PATCH', `/api/admin/orders/${no}`, { status: 'delivered' })).data.order.status, 'delivered');
+  assert.equal((await c('GET', '/api/orders/' + no)).data.order.status, 'delivered');
+});
+
+test('email outbox: a failed send is kept and retried, and the order still succeeds', async () => {
+  const { c } = await newUser();
+  testHooks.failNext = 1;
+  const r = await c('POST', '/api/orders', { items: [{ id: 'p1', qty: 1 }], ship_to: SHIP });
+  assert.equal(r.status, 201, 'order placed even though email failed');
+  assert.equal(r.data.email.sent, false);
+  const row = db.raw.prepare("SELECT * FROM email_outbox WHERE ref = ? AND kind = 'order'").get(r.data.order.order_no);
+  assert.equal(row.status, 'pending');
+  assert.equal(row.attempts, 1);
+  assert.ok(row.next_attempt_at > new Date().toISOString(), 'retry scheduled later');
+  db.raw.prepare('UPDATE email_outbox SET next_attempt_at = ? WHERE id = ?').run(new Date(0).toISOString(), row.id);
+  await processOutbox();
+  const after = db.raw.prepare('SELECT status, attempts FROM email_outbox WHERE id = ?').get(row.id);
+  assert.deepEqual(after, { status: 'sent', attempts: 2 });
+});
+
+test('email outbox: gives up after 6 attempts; admin can retry failed emails', async () => {
+  const id = db.enqueueEmail({ to: 'x@example.com', subject: 'Hi', html: '<p>hi</p>', kind: 'test' });
+  testHooks.failNext = 6;
+  for (let i = 0; i < 6; i++) {
+    db.raw.prepare('UPDATE email_outbox SET next_attempt_at = ? WHERE id = ?').run(new Date(0).toISOString(), id);
+    await processOutbox();
+  }
+  assert.equal(db.raw.prepare('SELECT status FROM email_outbox WHERE id = ?').get(id).status, 'failed');
+  const admin = await adminClient();
+  assert.ok((await admin('GET', '/api/admin/stats')).data.stats.emails.failed >= 1);
+  const r = await admin('POST', '/api/admin/emails/retry');
+  assert.ok(r.data.retried >= 1);
+  assert.equal(db.raw.prepare('SELECT status FROM email_outbox WHERE id = ?').get(id).status, 'sent');
+});
+
+test('email verification: signup sends a link; it confirms once; resend works', async () => {
+  const before = outbox.length;
+  const { c, email } = await newUser();
+  assert.equal((await c('GET', '/api/me')).data.user.email_verified_at, null);
+  await new Promise((r) => setTimeout(r, 50));
+  const mail = outbox.slice(before).find((m) => m.to === email.toLowerCase() && /Confirm/.test(m.subject));
+  const token = mail.html.match(/#verify=([a-f0-9]{64})/)[1];
+  assert.equal((await client()('POST', '/api/auth/verify', { token: 'f'.repeat(64) })).status, 400);
+  assert.equal((await client()('POST', '/api/auth/verify', { token })).status, 200, 'works from any browser');
+  assert.equal((await client()('POST', '/api/auth/verify', { token })).status, 400, 'one-time');
+  assert.ok((await c('GET', '/api/me')).data.user.email_verified_at);
+  assert.equal((await c('POST', '/api/auth/verify/resend')).status, 400, 'already verified');
+  const other = await newUser();
+  assert.equal((await other.c('POST', '/api/auth/verify/resend')).status, 200);
+});
+
+test('download my data includes everything about the user and nothing secret', async () => {
+  const { c } = await newUser();
+  await c('POST', '/api/orders', { items: [{ id: 'p1', qty: 1 }], ship_to: SHIP });
+  await c('POST', '/api/quiz/results', { skinType: 'dry', dosha: 'vata' });
+  const res = await fetch(base + '/api/me/export', { headers: { Cookie: [...(await c('GET', '/api/me')).jar].map(([k, v]) => `${k}=${v}`).join('; ') } });
+  assert.match(res.headers.get('content-disposition'), /attachment; filename="kanti-my-data-/);
+  const data = await res.json();
+  assert.equal(data.orders.length, 1);
+  assert.equal(data.quiz_history.length, 1);
+  assert.equal(data.account.password_hash, undefined);
+  assert.equal(JSON.stringify(data).includes('$2a$'), false, 'no bcrypt hash anywhere');
+});
+
+test('backups: consistent copy, rotation keeps the newest N, admin can trigger one', async () => {
+  const { backupNow, listBackups } = require('../src/backup');
+  for (let i = 0; i < 3; i++) await backupNow('test');
+  assert.equal(listBackups().length, 2, 'BACKUP_KEEP=2');
+  const Database = require('better-sqlite3');
+  const copy = new Database(path.join(tmp, 'backups', listBackups().at(-1)), { readonly: true });
+  assert.equal(copy.pragma('integrity_check', { simple: true }), 'ok');
+  assert.ok(copy.prepare('SELECT count(*) n FROM products').get().n >= 13);
+  copy.close();
+  const admin = await adminClient();
+  const r = await admin('POST', '/api/admin/backup');
+  assert.match(r.data.file, /^kanti-\d{8}-\d{6}/);
+  assert.ok((await admin('GET', '/api/admin/stats')).data.stats.last_backup_at);
+});
+
+test('every response has a request id; server errors quote it', async () => {
+  const r = await fetch(base + '/api/products');
+  assert.match(r.headers.get('x-request-id'), /^[a-f0-9]{12}$/);
+  const r2 = await fetch(base + '/api/health', { headers: { 'X-Request-Id': 'my-trace-123' } });
+  assert.equal(r2.headers.get('x-request-id'), 'my-trace-123');
 });

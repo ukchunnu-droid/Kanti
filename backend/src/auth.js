@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
+const log = require('./log');
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 const PLACEHOLDER = 'change-me-to-a-long-random-string';
@@ -19,10 +20,10 @@ function resolveSecret() {
   const s = process.env.JWT_SECRET;
   if (s && s !== PLACEHOLDER && s.length >= 32) return s;
   if (IS_PROD) {
-    console.error('[auth] JWT_SECRET must be set to a long random string in production. Refusing to start.');
+    log.error('JWT_SECRET must be set to a long random string in production. Refusing to start.');
     process.exit(1);
   }
-  console.warn('[auth] JWT_SECRET not set (or too short) — using a random dev secret; sessions reset on restart.');
+  log.warn('JWT_SECRET not set (or too short) — using a random dev secret; sessions reset on restart.');
   return crypto.randomBytes(48).toString('hex');
 }
 const SECRET = resolveSecret();
@@ -99,6 +100,14 @@ function optionalAuth(req, _res, next) {
   next();
 }
 
+// Admin pages/API: only the account whose email matches ADMIN_EMAIL.
+function requireAdmin(req, res, next) {
+  requireAuth(req, res, () => {
+    if (!db.isAdmin(req.user)) return res.status(403).json({ error: 'This page is for the store admin only.' });
+    next();
+  });
+}
+
 module.exports = {
-  hashPassword, verifyPassword, signToken, setSession, clearSession, requireAuth, optionalAuth,
+  hashPassword, verifyPassword, signToken, setSession, clearSession, requireAuth, optionalAuth, requireAdmin,
 };

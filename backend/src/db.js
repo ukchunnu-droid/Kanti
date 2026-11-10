@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const { PRODUCTS, SHIPPING } = require('./catalog');
+const log = require('./log');
 
 const DB_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'kanti.db');
 const db = new Database(DB_FILE);
@@ -121,6 +122,46 @@ const MIGRATIONS = [
       ALTER TABLE users DROP COLUMN dosha;
       ALTER TABLE users DROP COLUMN concern;`);
   },
+
+  // 3 — products become admin-managed (category/stock/order columns), email verification,
+  //     order lifecycle, email outbox with retries, app settings
+  () => db.exec(`
+    ALTER TABLE products ADD COLUMN category TEXT NOT NULL DEFAULT 'Other';
+    ALTER TABLE products ADD COLUMN stock INTEGER CHECK (stock IS NULL OR stock >= 0);
+    ALTER TABLE products ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE products ADD COLUMN created_at TEXT;
+    ALTER TABLE products ADD COLUMN updated_at TEXT;
+    UPDATE products SET
+      category = coalesce(json_extract(data_json, '$.cat'), 'Other'),
+      data_json = json_remove(data_json, '$.cat'),
+      sort_order = rowid, stock = 25,
+      created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
+
+    ALTER TABLE users ADD COLUMN email_verified_at TEXT;
+    UPDATE users SET email_verified_at = created_at; -- accounts made before verification existed count as verified
+
+    ALTER TABLE orders ADD COLUMN status_updated_at TEXT;
+    ALTER TABLE orders ADD COLUMN tracking_no TEXT;
+    UPDATE orders SET status_updated_at = created_at;
+
+    CREATE TABLE email_verifications (
+      token_hash TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TEXT NOT NULL, used_at TEXT
+    );
+
+    CREATE TABLE email_outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      to_addr TEXT NOT NULL, subject TEXT NOT NULL, html TEXT NOT NULL,
+      kind TEXT NOT NULL, ref TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sending','sent','failed')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at TEXT NOT NULL, last_error TEXT, preview_url TEXT,
+      created_at TEXT NOT NULL, sent_at TEXT
+    );
+    CREATE INDEX idx_outbox_due ON email_outbox(status, next_attempt_at);
+
+    CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT);`),
 ];
 
 function migrate() {
@@ -133,10 +174,10 @@ function migrate() {
         MIGRATIONS[v]();
         db.pragma(`user_version = ${v + 1}`);
       })();
-      console.log(`[db] migrated to schema v${v + 1}`);
+      log.info(`db: migrated to schema v${v + 1}`);
     }
     const broken = db.pragma('foreign_key_check');
-    if (broken.length) console.warn('[db] foreign key problems after migration:', broken.slice(0, 5));
+    if (broken.length) log.warn('db: foreign key problems after migration', { rows: broken.slice(0, 5) });
   } finally {
     db.pragma('foreign_keys = ON');
   }
@@ -144,35 +185,58 @@ function migrate() {
 migrate();
 db.pragma('foreign_keys = ON');
 
-// ---------- Catalogue (upserted from src/catalog.js on every start) ----------
-const upsertProduct = db.prepare(`
-  INSERT INTO products (id, name, price_cents, active, data_json) VALUES (@id, @name, @price_cents, @active, @data_json)
-  ON CONFLICT(id) DO UPDATE SET name=excluded.name, price_cents=excluded.price_cents,
-    active=excluded.active, data_json=excluded.data_json`);
-db.transaction(() => {
-  for (const p of PRODUCTS) {
-    const { id, name, price_cents, active, ...rest } = p;
-    upsertProduct.run({ id, name, price_cents, active: active === false ? 0 : 1, data_json: JSON.stringify(rest) });
-  }
-})();
+// ---------- Catalogue ----------
+// The products table is the source of truth (edited from the admin page).
+// src/catalog.js only seeds a brand-new, empty database.
+const now = () => new Date().toISOString();
+const PRODUCT_COLUMNS = ['id', 'name', 'price_cents', 'active', 'category', 'stock', 'sort_order', 'created_at', 'updated_at'];
+
+function splitProduct(p) {
+  // Columns vs. the free-form details kept in data_json.
+  const { id, name, price_cents, active, cat, category, stock, sort_order, price, created_at, updated_at, orders, ...rest } = p;
+  return {
+    cols: { id, name, price_cents, active: active === false ? 0 : 1, category: category || cat || 'Other',
+      stock: stock == null ? null : stock, sort_order: sort_order || 0 },
+    data: rest,
+  };
+}
+const insertProductStmt = db.prepare(`INSERT INTO products
+  (id, name, price_cents, active, category, stock, sort_order, data_json, created_at, updated_at)
+  VALUES (@id, @name, @price_cents, @active, @category, @stock, @sort_order, @data_json, @created_at, @updated_at)`);
+function insertProduct(p) {
+  const { cols, data } = splitProduct(p);
+  insertProductStmt.run({ ...cols, data_json: JSON.stringify(data), created_at: now(), updated_at: now() });
+}
+
+if (db.prepare('SELECT count(*) AS n FROM products').get().n === 0) {
+  db.transaction(() => PRODUCTS.forEach((p, i) => insertProduct({ stock: 25, ...p, sort_order: i + 1 })))();
+  log.info(`db: seeded ${PRODUCTS.length} products from src/catalog.js`);
+}
 
 const rowToProduct = (r) => ({
-  id: r.id, name: r.name, price_cents: r.price_cents, price: r.price_cents / 100, active: !!r.active,
   ...JSON.parse(r.data_json),
+  id: r.id, name: r.name, cat: r.category, category: r.category,
+  price_cents: r.price_cents, price: r.price_cents / 100, active: !!r.active,
+  stock: r.stock, sort_order: r.sort_order, created_at: r.created_at, updated_at: r.updated_at,
 });
 const productStmt = db.prepare('SELECT * FROM products WHERE id = ?');
-const productsStmt = db.prepare('SELECT * FROM products WHERE active = 1 ORDER BY rowid');
+const productsStmt = db.prepare('SELECT * FROM products WHERE active = 1 ORDER BY sort_order, created_at');
+const allProductsStmt = db.prepare(`SELECT p.*, (SELECT count(*) FROM order_items i WHERE i.product_id = p.id) AS orders
+  FROM products p ORDER BY p.active DESC, p.sort_order, p.created_at`);
+
+class StockError extends Error {}
 
 // ---------- Users ----------
 const USER_FIELDS = ['name', 'phone', 'address', 'address2', 'city', 'state', 'zip', 'country'];
 
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+const isAdmin = (u) => !!(u && ADMIN_EMAIL && u.email === ADMIN_EMAIL);
+
 function publicUser(u) {
   if (!u) return null;
   const { password_hash, token_version, ...safe } = u;
-  return safe;
+  return { ...safe, is_admin: isAdmin(u) };
 }
-
-const now = () => new Date().toISOString();
 
 // ---------- Orders ----------
 function newOrderNo() {
@@ -190,6 +254,7 @@ function orderFromRow(r) {
   }));
   return {
     order_no: r.order_no, status: r.status, date: r.created_at, items,
+    status_updated_at: r.status_updated_at || r.created_at, tracking_no: r.tracking_no || null,
     subtotal_cents: r.subtotal_cents, shipping_cents: r.shipping_cents, total_cents: r.total_cents,
     subtotal: r.subtotal_cents / 100, shipping: r.shipping_cents / 100, total: r.total_cents / 100,
     ship_to: JSON.parse(r.ship_to_json || '{}'),
@@ -208,11 +273,17 @@ function quizFromRow(r) {
   };
 }
 
+// Allowed order status changes.
+const ORDER_TRANSITIONS = { placed: ['shipped', 'cancelled'], shipped: ['delivered'], delivered: [], cancelled: [] };
+
 module.exports = {
   raw: db,
   SHIPPING,
   USER_FIELDS,
+  ORDER_TRANSITIONS,
+  StockError,
   publicUser,
+  isAdmin,
 
   // users
   createUser(name, email, password_hash) {
@@ -238,7 +309,34 @@ module.exports = {
 
   // products
   listProducts: () => productsStmt.all().map(rowToProduct),
+  listAllProducts: () => allProductsStmt.all().map((r) => ({ ...rowToProduct(r), orders: r.orders })),
   getProduct: (id) => { const r = productStmt.get(id); return r ? rowToProduct(r) : null; },
+  productIdExists: (id) => !!productStmt.get(id),
+  createProduct(p) {
+    const max = db.prepare('SELECT coalesce(max(sort_order), 0) AS m FROM products').get().m;
+    insertProduct({ sort_order: max + 1, ...p });
+    return this.getProduct(p.id);
+  },
+  // Partial update: `changes` holds only the fields being changed.
+  updateProduct(id, changes) {
+    const cur = this.getProduct(id);
+    if (!cur) return null;
+    const { cols, data } = splitProduct({ ...cur, ...changes });
+    db.prepare(`UPDATE products SET name=@name, price_cents=@price_cents, active=@active, category=@category,
+      stock=@stock, sort_order=@sort_order, data_json=@data_json, updated_at=@updated_at WHERE id=@id`)
+      .run({ ...cols, id, data_json: JSON.stringify(data), updated_at: now() });
+    return this.getProduct(id);
+  },
+  // Products that appear in past orders are archived (hidden) instead of deleted, so history stays intact.
+  deleteProduct(id) {
+    const used = db.prepare('SELECT count(*) AS n FROM order_items WHERE product_id = ?').get(id).n;
+    if (used) { this.updateProduct(id, { active: false }); return { archived: true }; }
+    db.transaction(() => {
+      db.prepare('DELETE FROM cart_items WHERE product_id = ?').run(id);
+      db.prepare('DELETE FROM products WHERE id = ?').run(id);
+    })();
+    return { deleted: true };
+  },
 
   // orders
   createOrder({ user_id, lines, subtotal_cents, shipping_cents, total_cents, ship_to }) {
@@ -246,9 +344,9 @@ module.exports = {
       let info;
       for (let attempt = 0; ; attempt++) {
         try {
-          info = db.prepare(`INSERT INTO orders (order_no, user_id, subtotal_cents, shipping_cents, total_cents, ship_to_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`)
-            .run(newOrderNo(), user_id, subtotal_cents, shipping_cents, total_cents, JSON.stringify(ship_to || {}), now());
+          info = db.prepare(`INSERT INTO orders (order_no, user_id, subtotal_cents, shipping_cents, total_cents, ship_to_json, created_at, status_updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(newOrderNo(), user_id, subtotal_cents, shipping_cents, total_cents, JSON.stringify(ship_to || {}), now(), now());
           break;
         } catch (e) {
           if (attempt < 3 && /UNIQUE/.test(e.message)) continue; // order number collision → retry
@@ -256,7 +354,17 @@ module.exports = {
         }
       }
       const ins = db.prepare(`INSERT INTO order_items (order_id, product_id, name, unit_price_cents, qty) VALUES (?, ?, ?, ?, ?)`);
-      for (const l of lines) ins.run(info.lastInsertRowid, l.id, l.name, l.price_cents, l.qty);
+      // Take stock atomically: the WHERE clause makes overselling impossible, even with simultaneous orders.
+      const take = db.prepare(`UPDATE products SET stock = stock - @qty
+        WHERE id = @id AND active = 1 AND (stock IS NULL OR stock >= @qty)`);
+      for (const l of lines) {
+        if (!take.run({ id: l.id, qty: l.qty }).changes) {
+          const p = productStmt.get(l.id);
+          throw new StockError(!p || !p.active ? `${l.name} is no longer available.`
+            : p.stock === 0 ? `${l.name} just sold out.` : `Only ${p.stock} of ${l.name} left — please lower the quantity.`);
+        }
+        ins.run(info.lastInsertRowid, l.id, l.name, l.price_cents, l.qty);
+      }
       db.prepare('DELETE FROM cart_items WHERE user_id = ?').run(user_id); // ordered → bag is empty
       return orderFromRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(info.lastInsertRowid));
     })();
@@ -268,6 +376,35 @@ module.exports = {
   getOrder(userId, orderNo) {
     const r = db.prepare('SELECT * FROM orders WHERE user_id = ? AND order_no = ?').get(userId, orderNo);
     return r ? orderFromRow(r) : null;
+  },
+  getOrderByNo(orderNo) {
+    const r = db.prepare('SELECT * FROM orders WHERE order_no = ?').get(orderNo);
+    return r ? { ...orderFromRow(r), user_id: r.user_id } : null;
+  },
+  // Admin list: every order with its customer.
+  listAllOrders({ status } = {}) {
+    const rows = status
+      ? db.prepare('SELECT * FROM orders WHERE status = ? ORDER BY id DESC LIMIT 500').all(status)
+      : db.prepare('SELECT * FROM orders ORDER BY id DESC LIMIT 500').all();
+    const userStmt = db.prepare('SELECT name, email FROM users WHERE id = ?');
+    return rows.map((r) => ({ ...orderFromRow(r), customer: userStmt.get(r.user_id) || null }));
+  },
+  // Moves an order along its lifecycle; cancelling puts the stock back. Returns the updated order.
+  setOrderStatus(orderNo, status, trackingNo) {
+    return db.transaction(() => {
+      const r = db.prepare('SELECT * FROM orders WHERE order_no = ?').get(orderNo);
+      if (!r) return { error: 'Order not found.', code: 404 };
+      if (!(ORDER_TRANSITIONS[r.status] || []).includes(status)) {
+        return { error: `An order that is ${r.status} can’t be marked ${status}.`, code: 409 };
+      }
+      db.prepare('UPDATE orders SET status = ?, status_updated_at = ?, tracking_no = coalesce(?, tracking_no) WHERE id = ?')
+        .run(status, now(), trackingNo || null, r.id);
+      if (status === 'cancelled') {
+        const back = db.prepare('UPDATE products SET stock = stock + ? WHERE id = ? AND stock IS NOT NULL');
+        for (const i of db.prepare('SELECT product_id, qty FROM order_items WHERE order_id = ?').all(r.id)) back.run(i.qty, i.product_id);
+      }
+      return { order: { ...orderFromRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(r.id)), user_id: r.user_id } };
+    })();
   },
 
   // quiz history
@@ -307,6 +444,87 @@ module.exports = {
     db.prepare(`INSERT INTO routine_progress (user_id, data_json, updated_at) VALUES (?, ?, ?)
       ON CONFLICT(user_id) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`)
       .run(userId, JSON.stringify(data), now());
+  },
+
+  // email verification (only a SHA-256 of the token is stored)
+  createEmailVerification(userId, tokenHash, expiresAt) {
+    db.prepare('DELETE FROM email_verifications WHERE user_id = ? AND used_at IS NULL').run(userId);
+    db.prepare('INSERT INTO email_verifications (token_hash, user_id, expires_at) VALUES (?, ?, ?)').run(tokenHash, userId, expiresAt);
+  },
+  consumeEmailVerification(tokenHash) {
+    return db.transaction(() => {
+      const r = db.prepare('SELECT * FROM email_verifications WHERE token_hash = ?').get(tokenHash);
+      if (!r || r.used_at || r.expires_at < now()) return null;
+      db.prepare('UPDATE email_verifications SET used_at = ? WHERE token_hash = ?').run(now(), tokenHash);
+      db.prepare('UPDATE users SET email_verified_at = coalesce(email_verified_at, ?) WHERE id = ?').run(now(), r.user_id);
+      return r.user_id;
+    })();
+  },
+
+  // email outbox
+  enqueueEmail({ to, subject, html, kind, ref }) {
+    return db.prepare(`INSERT INTO email_outbox (to_addr, subject, html, kind, ref, next_attempt_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`).run(to, subject, html, kind, ref || null, now(), now()).lastInsertRowid;
+  },
+  // Atomically claims due emails so two workers never send the same one.
+  claimDueEmails(limit = 10) {
+    return db.transaction(() => {
+      const rows = db.prepare(`SELECT * FROM email_outbox WHERE status = 'pending' AND next_attempt_at <= ?
+        ORDER BY id LIMIT ?`).all(now(), limit);
+      const claim = db.prepare(`UPDATE email_outbox SET status = 'sending' WHERE id = ? AND status = 'pending'`);
+      return rows.filter((r) => claim.run(r.id).changes);
+    })();
+  },
+  claimEmail(id) {
+    const ok = db.prepare(`UPDATE email_outbox SET status = 'sending' WHERE id = ? AND status = 'pending'`).run(id).changes;
+    return ok ? db.prepare('SELECT * FROM email_outbox WHERE id = ?').get(id) : null;
+  },
+  markEmailSent(id, previewUrl) {
+    db.prepare(`UPDATE email_outbox SET status = 'sent', sent_at = ?, preview_url = ?, attempts = attempts + 1, last_error = NULL WHERE id = ?`)
+      .run(now(), previewUrl || null, id);
+  },
+  markEmailFailed(id, error, nextAttemptAt) {
+    db.prepare(`UPDATE email_outbox SET status = ?, attempts = attempts + 1, last_error = ?, next_attempt_at = coalesce(?, next_attempt_at) WHERE id = ?`)
+      .run(nextAttemptAt ? 'pending' : 'failed', String(error).slice(0, 500), nextAttemptAt, id);
+  },
+  // Emails left in 'sending' by a crash go back in the queue on startup.
+  requeueStuckEmails: () => db.prepare(`UPDATE email_outbox SET status = 'pending' WHERE status = 'sending'`).run().changes,
+  retryFailedEmails: () => db.prepare(`UPDATE email_outbox SET status = 'pending', attempts = 0, next_attempt_at = ? WHERE status = 'failed'`).run(now()).changes,
+  recentEmails: (limit = 30) => db.prepare(`SELECT id, to_addr, subject, kind, ref, status, attempts, last_error, created_at, sent_at
+    FROM email_outbox ORDER BY id DESC LIMIT ?`).all(limit),
+
+  // settings
+  getMeta: (key) => (db.prepare('SELECT value FROM app_meta WHERE key = ?').get(key) || {}).value || null,
+  setMeta: (key, value) => db.prepare(`INSERT INTO app_meta (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(key, String(value)),
+
+  // admin dashboard numbers
+  stats() {
+    const one = (sql, ...a) => db.prepare(sql).get(...a);
+    const byStatus = Object.fromEntries(db.prepare('SELECT status, count(*) n FROM orders GROUP BY status').all().map((r) => [r.status, r.n]));
+    const emails = Object.fromEntries(db.prepare('SELECT status, count(*) n FROM email_outbox GROUP BY status').all().map((r) => [r.status, r.n]));
+    return {
+      users: one('SELECT count(*) n FROM users').n,
+      products: { active: one('SELECT count(*) n FROM products WHERE active = 1').n,
+        hidden: one('SELECT count(*) n FROM products WHERE active = 0').n,
+        low_stock: one('SELECT count(*) n FROM products WHERE active = 1 AND stock IS NOT NULL AND stock <= 5').n },
+      orders: byStatus,
+      revenue_cents: one(`SELECT coalesce(sum(total_cents), 0) n FROM orders WHERE status != 'cancelled'`).n,
+      emails,
+      last_backup_at: this.getMeta('last_backup_at'),
+    };
+  },
+
+  // everything stored about one user ("download my data")
+  exportUser(userId) {
+    return {
+      exported_at: now(),
+      account: publicUser(this.getUserById(userId)),
+      orders: this.getOrdersByUser(userId),
+      quiz_history: this.quizHistory(userId, 1000),
+      saved_bag: this.getCart(userId),
+      routine: this.getRoutine(userId),
+    };
   },
 
   // password resets (only a SHA-256 of the token is stored)

@@ -5,9 +5,11 @@ const express = require('express');
 
 const db = require('./db');
 const {
-  hashPassword, verifyPassword, setSession, clearSession, requireAuth, optionalAuth,
+  hashPassword, verifyPassword, setSession, clearSession, requireAuth, optionalAuth, requireAdmin,
 } = require('./auth');
-const { sendOrderConfirmation, sendPasswordReset } = require('./email');
+const email = require('./email');
+const backup = require('./backup');
+const log = require('./log');
 const { classifyQuiz } = require('./ai');
 const { rateLimit } = require('./rate-limit');
 const v = require('./validate');
@@ -16,9 +18,41 @@ const PORT = process.env.PORT || 3000;
 const IS_PROD = process.env.NODE_ENV === 'production';
 const APP_URL = (process.env.APP_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 
+// ---------- Error tracking (optional) ----------
+// Set SENTRY_DSN and `npm install @sentry/node` to get crash reports with the request id.
+let Sentry = null;
+if (process.env.SENTRY_DSN) {
+  try {
+    Sentry = require('@sentry/node');
+    Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || 'development' });
+    log.info('error tracking: Sentry enabled');
+  } catch {
+    log.warn('SENTRY_DSN is set but @sentry/node is not installed — run `npm install @sentry/node`');
+  }
+}
+
 const app = express();
 if (process.env.TRUST_PROXY) app.set('trust proxy', 1); // behind Render/Railway etc. → real client IPs
 app.disable('x-powered-by');
+
+// ---------- Request id + access log ----------
+// Every response carries X-Request-Id; error messages include it so a user can quote it.
+app.use((req, res, next) => {
+  const incoming = req.get('x-request-id');
+  req.id = incoming && /^[\w-]{6,64}$/.test(incoming) ? incoming : crypto.randomBytes(6).toString('hex');
+  res.setHeader('X-Request-Id', req.id);
+  if (req.path.startsWith('/api/')) {
+    const start = process.hrtime.bigint();
+    res.on('finish', () => {
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      const fields = { id: req.id, method: req.method, path: req.path, status: res.statusCode, ms: Math.round(ms) };
+      if (req.userId) fields.user = req.userId;
+      if (res.statusCode >= 500) log.error('request', fields);
+      else if (req.path !== '/api/health') log.info('request', fields);
+    });
+  }
+  next();
+});
 
 // ---------- Security headers ----------
 // The storefront uses inline scripts/handlers, hence 'unsafe-inline'; everything else is locked to self.
@@ -61,6 +95,9 @@ const loginLimit = rateLimit({
 const signupLimit = rateLimit({
   windowMs: 60 * 60e3, max: Number(process.env.RATE_SIGNUP_MAX || 30), key: (req) => 'signup:' + ip(req),
 });
+const verifyLimit = rateLimit({
+  windowMs: 60 * 60e3, max: Number(process.env.RATE_VERIFY_MAX || 5), key: (req) => 'verify:' + (req.userId || ip(req)),
+});
 const resetLimit = rateLimit({
   windowMs: 60 * 60e3, max: Number(process.env.RATE_RESET_MAX || 10), key: (req) => 'reset:' + ip(req),
 });
@@ -73,32 +110,47 @@ const DUMMY_HASH = require('bcryptjs').hashSync('not-a-real-password', 10);
 // What the storefront gets back for the signed-in user.
 const mePayload = (userId) => ({ user: db.publicUser(db.getUserById(userId)), skin: db.latestQuiz(userId) });
 
-// ---------- Health ----------
+const sha256 = (t) => crypto.createHash('sha256').update(t).digest('hex');
+
+// Emails a 48-hour link that confirms the account's email address.
+function sendVerification(user) {
+  const token = crypto.randomBytes(32).toString('hex');
+  db.createEmailVerification(user.id, sha256(token), new Date(Date.now() + 48 * 3600e3).toISOString());
+  return email.queueVerification(user, `${APP_URL}/#verify=${token}`);
+}
+
+// ---------- Health (for uptime monitors) ----------
 app.get('/api/health', (_req, res) => {
-  db.raw.prepare('SELECT 1').get();
-  res.json({ ok: true, ai: process.env.GEMINI_API_KEY ? 'gemini' : 'rules', time: new Date().toISOString() });
+  try {
+    db.raw.prepare('SELECT 1').get();
+    res.json({ ok: true, time: new Date().toISOString(), uptime_s: Math.round(process.uptime()) });
+  } catch (e) {
+    log.error('health check failed', { error: e.message });
+    res.status(503).json({ ok: false });
+  }
 });
 
 // ---------- Auth ----------
 app.post('/api/auth/signup', signupLimit, h(async (req, res) => {
   const { name, password } = req.body || {};
-  const email = v.email(req.body && req.body.email);
-  if (!email || !v.isEmail(email)) return bad(res, 'Please enter a valid email.');
+  const emailAddr = v.email(req.body && req.body.email);
+  if (!emailAddr || !v.isEmail(emailAddr)) return bad(res, 'Please enter a valid email.');
   const pwErr = v.passwordError(password);
   if (pwErr) return bad(res, pwErr);
   const nameVal = v.text(name, 80);
   if (!nameVal) return bad(res, 'Please tell us your name.');
-  if (db.getUserByEmail(email)) return bad(res, 'An account with that email already exists. Try signing in.', 409);
+  if (db.getUserByEmail(emailAddr)) return bad(res, 'An account with that email already exists. Try signing in.', 409);
 
-  const user = db.createUser(nameVal, email, await hashPassword(password));
+  const user = db.createUser(nameVal, emailAddr, await hashPassword(password));
   setSession(res, user);
+  sendVerification(user).catch((e) => log.warn('verification email failed', { error: e.message }));
   res.status(201).json(mePayload(user.id));
 }));
 
 app.post('/api/auth/login', loginLimit, h(async (req, res) => {
-  const email = v.email(req.body && req.body.email);
+  const emailAddr = v.email(req.body && req.body.email);
   const password = String((req.body || {}).password || '');
-  const user = email ? db.getUserByEmail(email) : null;
+  const user = emailAddr ? db.getUserByEmail(emailAddr) : null;
   // Always run bcrypt so response time doesn't reveal whether the email exists.
   const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_HASH);
   if (!user || !ok) return bad(res, 'Email or password is incorrect.', 401);
@@ -113,15 +165,29 @@ app.post('/api/auth/logout', (_req, res) => {
 
 // Always answers the same way, so it can't be used to discover which emails have accounts.
 app.post('/api/auth/forgot', resetLimit, h(async (req, res) => {
-  const email = v.email(req.body && req.body.email);
-  const user = email && v.isEmail(email) ? db.getUserByEmail(email) : null;
+  const emailAddr = v.email(req.body && req.body.email);
+  const user = emailAddr && v.isEmail(emailAddr) ? db.getUserByEmail(emailAddr) : null;
   if (user) {
     const token = crypto.randomBytes(32).toString('hex');
-    const hash = crypto.createHash('sha256').update(token).digest('hex');
-    db.createPasswordReset(user.id, hash, new Date(Date.now() + 3600e3).toISOString());
-    sendPasswordReset(user, `${APP_URL}/#reset=${token}`)
-      .catch((e) => console.warn('[auth] reset email failed:', e.message));
+    db.createPasswordReset(user.id, sha256(token), new Date(Date.now() + 3600e3).toISOString());
+    email.queuePasswordReset(user, `${APP_URL}/#reset=${token}`)
+      .catch((e) => log.warn('reset email failed', { error: e.message }));
   }
+  res.json({ ok: true });
+}));
+
+// Email verification: the link can be opened in any browser, signed in or not.
+app.post('/api/auth/verify', resetLimit, (req, res) => {
+  const { token } = req.body || {};
+  if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) return bad(res, 'This confirmation link is invalid.');
+  const userId = db.consumeEmailVerification(sha256(token));
+  if (!userId) return bad(res, 'This confirmation link has expired or was already used. You can send a new one from your account page.');
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/verify/resend', requireAuth, verifyLimit, h(async (req, res) => {
+  if (req.user.email_verified_at) return bad(res, 'Your email is already confirmed.');
+  await sendVerification(req.user);
   res.json({ ok: true });
 }));
 
@@ -130,7 +196,7 @@ app.post('/api/auth/reset', resetLimit, h(async (req, res) => {
   if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) return bad(res, 'This reset link is invalid.');
   const pwErr = v.passwordError(password);
   if (pwErr) return bad(res, pwErr);
-  const userId = db.consumePasswordReset(crypto.createHash('sha256').update(token).digest('hex'));
+  const userId = db.consumePasswordReset(sha256(token));
   if (!userId) return bad(res, 'This reset link has expired or was already used. Please request a new one.');
   db.setPassword(userId, await hashPassword(password)); // also signs out every other session
   setSession(res, db.getUserById(userId));
@@ -162,6 +228,13 @@ app.post('/api/me/password', requireAuth, h(async (req, res) => {
   setSession(res, db.getUserById(req.userId)); // …but keep this one signed in
   res.json({ ok: true });
 }));
+
+// "Download my data": everything stored about the signed-in user, as a JSON file.
+app.get('/api/me/export', requireAuth, (req, res) => {
+  res.setHeader('Content-Disposition', `attachment; filename="kanti-my-data-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.type('application/json').send(JSON.stringify(db.exportUser(req.userId), null, 2));
+});
 
 app.delete('/api/me', requireAuth, h(async (req, res) => {
   if (!(await verifyPassword(String((req.body || {}).password || ''), req.user.password_hash))) {
@@ -222,15 +295,6 @@ app.put('/api/routine', requireAuth, (req, res) => {
 });
 
 // ---------- Orders ----------
-// Sends the email in the background; waits up to 8s so the preview link can usually be shown right away.
-function sendOrderEmail(order, user) {
-  const sending = sendOrderConfirmation(order, user)
-    .then((r) => { if (r.previewUrl) db.setOrderEmailPreview(order.order_no, r.previewUrl); return r; })
-    .catch((e) => { console.warn('[orders] email failed:', e.message); return { previewUrl: null, failed: true }; });
-  const timeout = new Promise((r) => setTimeout(() => r({ previewUrl: null, pending: true }), 8000).unref());
-  return Promise.race([sending, timeout]);
-}
-
 app.post('/api/orders', requireAuth, h(async (req, res) => {
   const body = req.body || {};
   // Prices come from the catalogue, never from the browser.
@@ -247,19 +311,26 @@ app.post('/api/orders', requireAuth, h(async (req, res) => {
   const subtotal_cents = lines.reduce((s, l) => s + l.price_cents * l.qty, 0);
   const shipping_cents = subtotal_cents > db.SHIPPING.free_over_cents ? 0 : db.SHIPPING.flat_cents;
 
-  const order = db.createOrder({
-    user_id: req.userId, lines, subtotal_cents, shipping_cents,
-    total_cents: subtotal_cents + shipping_cents, ship_to: ship.value,
-  });
+  let order;
+  try {
+    order = db.createOrder({
+      user_id: req.userId, lines, subtotal_cents, shipping_cents,
+      total_cents: subtotal_cents + shipping_cents, ship_to: ship.value,
+    });
+  } catch (e) {
+    if (e instanceof db.StockError) return bad(res, e.message, 409);
+    throw e;
+  }
   // Remember the address for next time unless the shopper opted out.
   if (body.save_details !== false) {
     const { name, phone, address, address2, city, state, zip, country } = ship.value;
     db.updateProfile(req.userId, { name, phone, address, address2, city, state, zip, country });
   }
 
-  const email = await sendOrderEmail(order, req.user);
-  order.email_preview_url = email.previewUrl || null;
-  res.status(201).json({ order, email });
+  // Saved to the outbox first, so it's retried if sending fails; waits up to 8s for the preview link.
+  const sent = await email.queueOrderConfirmation(order, req.user);
+  order.email_preview_url = sent.previewUrl || null;
+  res.status(201).json({ order, email: { previewUrl: sent.previewUrl || null, sent: !!sent.ok, queued: true } });
 }));
 
 app.get('/api/orders', requireAuth, (req, res) => res.json({ orders: db.getOrdersByUser(req.userId) }));
@@ -270,22 +341,116 @@ app.get('/api/orders/:no', requireAuth, (req, res) => {
   res.json({ order });
 });
 
+// Customers can cancel their own order until it ships. Stock goes back on the shelf.
+app.post('/api/orders/:no/cancel', requireAuth, (req, res) => {
+  const mine = db.getOrder(req.userId, String(req.params.no));
+  if (!mine) return bad(res, 'Order not found.', 404);
+  if (mine.status !== 'placed') return bad(res, `This order is already ${mine.status} and can’t be cancelled.`, 409);
+  const r = db.setOrderStatus(mine.order_no, 'cancelled');
+  if (r.error) return bad(res, r.error, r.code);
+  email.queueOrderStatus(r.order, req.user).catch(() => {});
+  res.json({ order: r.order });
+});
+
+// ---------- Admin (ADMIN_EMAIL only) ----------
+app.get('/api/admin/stats', requireAdmin, (_req, res) => res.json({ stats: db.stats() }));
+
+app.get('/api/admin/products', requireAdmin, (_req, res) => res.json({ products: db.listAllProducts() }));
+
+app.post('/api/admin/products', requireAdmin, (req, res) => {
+  const { value, error } = v.productInput(req.body || {});
+  if (error) return bad(res, error);
+  let id = v.slugify(value.name);
+  for (let i = 2; db.productIdExists(id); i++) id = `${v.slugify(value.name).slice(0, 36)}-${i}`;
+  const product = db.createProduct({ ...value, id });
+  log.info('admin: product created', { id, by: req.userId });
+  res.status(201).json({ product });
+});
+
+app.patch('/api/admin/products/:id', requireAdmin, (req, res) => {
+  if (!db.productIdExists(req.params.id)) return bad(res, 'Product not found.', 404);
+  const { value, error } = v.productInput(req.body || {}, { partial: true });
+  if (error) return bad(res, error);
+  const product = db.updateProduct(req.params.id, value);
+  log.info('admin: product updated', { id: req.params.id, fields: Object.keys(value), by: req.userId });
+  res.json({ product });
+});
+
+app.delete('/api/admin/products/:id', requireAdmin, (req, res) => {
+  if (!db.productIdExists(req.params.id)) return bad(res, 'Product not found.', 404);
+  const r = db.deleteProduct(req.params.id);
+  log.info(`admin: product ${r.archived ? 'archived' : 'deleted'}`, { id: req.params.id, by: req.userId });
+  res.json(r);
+});
+
+app.get('/api/admin/orders', requireAdmin, (req, res) => {
+  const status = Object.keys(db.ORDER_TRANSITIONS).includes(req.query.status) ? req.query.status : undefined;
+  res.json({ orders: db.listAllOrders({ status }) });
+});
+
+app.patch('/api/admin/orders/:no', requireAdmin, (req, res) => {
+  const { status } = req.body || {};
+  const tracking = v.text((req.body || {}).tracking_no, 60) || null;
+  if (!Object.keys(db.ORDER_TRANSITIONS).includes(status)) return bad(res, 'Unknown status.');
+  const r = db.setOrderStatus(String(req.params.no), status, tracking);
+  if (r.error) return bad(res, r.error, r.code);
+  const customer = db.getUserById(r.order.user_id);
+  if (customer) email.queueOrderStatus(r.order, customer).catch(() => {});
+  log.info('admin: order status changed', { order: r.order.order_no, status, by: req.userId });
+  res.json({ order: r.order });
+});
+
+app.get('/api/admin/emails', requireAdmin, (_req, res) => res.json({ emails: db.recentEmails(30) }));
+app.post('/api/admin/emails/retry', requireAdmin, h(async (_req, res) => {
+  const n = db.retryFailedEmails();
+  await email.processOutbox();
+  res.json({ retried: n });
+}));
+
+app.post('/api/admin/backup', requireAdmin, h(async (_req, res) => {
+  const { file, at } = await backup.backupNow('admin page');
+  res.json({ file: path.basename(file), at });
+}));
+
 // ---------- Errors ----------
 app.use('/api', (_req, res) => bad(res, 'Not found.', 404));
 // eslint-disable-next-line no-unused-vars
-app.use((err, _req, res, _next) => {
+app.use((err, req, res, _next) => {
   if (err.type === 'entity.parse.failed') return bad(res, 'Request body must be valid JSON.');
   if (err.type === 'entity.too.large') return bad(res, 'Request is too large.', 413);
-  console.error(err);
-  bad(res, 'Something went wrong on our side. Please try again.', 500);
+  log.error('unhandled error', { id: req.id, path: req.path, error: err.message, stack: err.stack });
+  if (Sentry) Sentry.captureException(err, { tags: { request_id: req.id } });
+  res.status(500).json({ error: `Something went wrong on our side. Please try again. (ref ${req.id})`, requestId: req.id });
+});
+
+process.on('unhandledRejection', (e) => {
+  log.error('unhandled promise rejection', { error: e && e.message, stack: e && e.stack });
+  if (Sentry) Sentry.captureException(e);
 });
 
 module.exports = app;
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`\n  Kanti backend running → http://localhost:${PORT}`);
-    console.log(`  AI mode: ${process.env.GEMINI_API_KEY ? 'Gemini (dynamic)' : 'rule-based fallback (no GEMINI_API_KEY set)'}`);
-    console.log(`  Email:   ${process.env.SMTP_HOST ? 'real SMTP' : 'Ethereal preview inbox (dev)'}\n`);
+  const server = app.listen(PORT, () => {
+    log.info(`Kanti running → http://localhost:${PORT}`, {
+      ai: process.env.GEMINI_API_KEY ? 'gemini' : 'rules',
+      email: process.env.SMTP_HOST ? 'smtp' : 'ethereal (test inbox, not delivered)',
+      admin: process.env.ADMIN_EMAIL ? 'configured' : 'none (set ADMIN_EMAIL)',
+    });
   });
+  email.startWorker();
+  backup.scheduleBackups();
+
+  // Graceful shutdown: finish in-flight requests, then close the database cleanly.
+  let stopping = false;
+  const shutdown = (signal) => {
+    if (stopping) return;
+    stopping = true;
+    log.info(`${signal} received — shutting down`);
+    email.stopWorker();
+    server.close(() => { db.raw.close(); log.info('stopped cleanly'); process.exit(0); });
+    setTimeout(() => { log.warn('forced exit after 10s'); process.exit(1); }, 10000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
