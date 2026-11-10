@@ -175,7 +175,20 @@ function queue({ to, subject, html, kind, ref }, waitMs = 0) {
   return Promise.race([sending, timeout]).then((r) => ({ queued: true, ...r }));
 }
 
+// How email is being delivered right now — shown on the admin page and at startup.
+function emailMode() {
+  if (process.env.EMAIL_TRANSPORT === 'json') return { mode: 'test', delivers: false };
+  if (process.env.SMTP_HOST && process.env.SMTP_USER) return { mode: 'smtp', delivers: true, host: process.env.SMTP_HOST };
+  return {
+    mode: 'ethereal', delivers: false,
+    problem: process.env.SMTP_USER || process.env.SMTP_PASS
+      ? 'SMTP_USER/SMTP_PASS are set but SMTP_HOST is empty, so emails only go to the Ethereal test inbox and are never delivered. Set SMTP_HOST (e.g. smtp.gmail.com) in .env and restart.'
+      : 'No SMTP settings in .env, so emails only go to the Ethereal test inbox and are never delivered.',
+  };
+}
+
 module.exports = {
+  emailMode,
   // Order confirmation waits up to 8s so the confirmation page can usually link the sent email.
   queueOrderConfirmation: (order, user) => queue({
     to: user.email, subject: `Your Kanti order ${order.order_no} is confirmed 🌿`,

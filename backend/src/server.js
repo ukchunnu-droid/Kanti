@@ -362,7 +362,7 @@ app.post('/api/orders/:no/cancel', requireAuth, (req, res) => {
 });
 
 // ---------- Admin (ADMIN_EMAIL only) ----------
-app.get('/api/admin/stats', requireAdmin, (_req, res) => res.json({ stats: db.stats() }));
+app.get('/api/admin/stats', requireAdmin, (_req, res) => res.json({ stats: { ...db.stats(), email_mode: email.emailMode() } }));
 
 app.get('/api/admin/products', requireAdmin, (_req, res) => res.json({ products: db.listAllProducts() }));
 
@@ -451,6 +451,8 @@ if (require.main === module) {
   });
   email.startWorker();
   backup.scheduleBackups();
+  const em = email.emailMode();
+  if (!em.delivers) log.warn('EMAILS ARE NOT BEING DELIVERED — ' + em.problem);
 
   // Graceful shutdown: finish in-flight requests, then close the database cleanly.
   let stopping = false;

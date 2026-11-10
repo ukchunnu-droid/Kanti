@@ -61,7 +61,9 @@ function adminTab(k) {
 function adminOverviewHTML() {
   const s = state.admin.stats, o = s.orders || {}, e = s.emails || {};
   const tile = (n, label, warn) => `<div class="stat ${warn ? 'warn' : ''}"><b>${n}</b><span>${label}</span></div>`;
+  const em = s.email_mode || {};
   return `
+    ${em.delivers === false ? `<div class="form-msg err" style="display:block">⚠️ Emails are not reaching customers. ${esc(em.problem || '')}</div>` : ''}
     <div class="stats">
       ${tile(money(s.revenue_cents / 100), 'Revenue (excl. cancelled)')}
       ${tile((o.placed || 0), 'Orders to ship', o.placed > 0)}
@@ -73,6 +75,7 @@ function adminOverviewHTML() {
     <div class="acct-grid two">
       <div class="acct-card">
         <h3>Emails</h3>
+        <div class="acct-row"><span class="ak">Delivery</span><span>${em.delivers ? 'Real email via ' + esc(em.host) : '<span class="danger-t">Test inbox only</span>'}</span></div>
         <div class="acct-row"><span class="ak">Sent</span><span>${e.sent || 0}</span></div>
         <div class="acct-row"><span class="ak">Waiting to retry</span><span>${e.pending || 0}</span></div>
         <div class="acct-row"><span class="ak">Failed</span><span class="${e.failed ? 'danger-t' : ''}">${e.failed || 0}</span></div>

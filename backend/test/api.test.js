@@ -488,7 +488,9 @@ test('email outbox: gives up after 6 attempts; admin can retry failed emails', a
   }
   assert.equal(db.raw.prepare('SELECT status FROM email_outbox WHERE id = ?').get(id).status, 'failed');
   const admin = await adminClient();
-  assert.ok((await admin('GET', '/api/admin/stats')).data.stats.emails.failed >= 1);
+  const st = (await admin('GET', '/api/admin/stats')).data.stats;
+  assert.ok(st.emails.failed >= 1);
+  assert.equal(st.email_mode.delivers, false, 'tests never deliver real email');
   const r = await admin('POST', '/api/admin/emails/retry');
   assert.ok(r.data.retried >= 1);
   assert.equal(db.raw.prepare('SELECT status FROM email_outbox WHERE id = ?').get(id).status, 'sent');
