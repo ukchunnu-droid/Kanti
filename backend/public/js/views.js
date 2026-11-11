@@ -3,12 +3,13 @@
 /* ---------- Quiz logic ---------- */
 function answer(opt){
   state.answers[state.qStep]=opt;
+  saveQuizProgress();
   renderQuiz();
 }
 async function nextQ(){
-  if(state.qStep<QUIZ.length-1){state.qStep++;renderQuiz();window.scrollTo({top:0});return;}
+  if(state.qStep<QUIZ.length-1){state.qStep++;saveQuizProgress();renderQuiz();window.scrollTo({top:0});return;}
   if(state.classifying) return;
-  state.classifying=true; renderQuiz();
+  state.classifying='reading'; renderQuiz();
   try{
     // AI classification on the server (Gemini, or rule-based fallback). If signed in, it's saved to the account.
     applyClassification(await API.classify(state.answers));
@@ -16,12 +17,39 @@ async function nextQ(){
     buildProfile(); state.profile.source='offline'; // server unreachable → local rules keep the flow working
     toast('Couldn’t reach the server — showing an offline result');
   }
+  clearQuizProgress();
+  // Then the AI routine. Wait a little for it so the results open complete; if it's slow,
+  // the rule-based routine shows first and the AI version swaps in when it arrives.
+  if(state.view==='quiz'){ state.classifying='building'; renderQuiz(); }
+  const reco=loadReco();
+  const arrived=await Promise.race([reco.then(()=>true),new Promise(r=>setTimeout(()=>r(false),12000))]);
+  if(!arrived) reco.then(d=>{ if(d) refreshForReco(); });
   state.classifying=false;
   if(state.view!=='quiz') return; // user navigated away while we waited
-  stashState();
+  stashState(); updateProfileChip();
   state.animateResults=true; go('results');
 }
-function prevQ(){if(state.classifying)return;if(state.qStep>0){state.qStep--;renderQuiz();window.scrollTo({top:0});}}
+function prevQ(){if(state.classifying)return;if(state.qStep>0){state.qStep--;saveQuizProgress();renderQuiz();window.scrollTo({top:0});}}
+
+// Half-finished quizzes survive a refresh or coming back later (this browser only, for 7 days).
+function saveQuizProgress(){
+  try{localStorage.setItem('kanti_quiz',JSON.stringify({step:state.qStep,answers:state.answers.map(a=>a?a.t:null),at:Date.now()}));}catch(e){}
+}
+function clearQuizProgress(){try{localStorage.removeItem('kanti_quiz');}catch(e){} state.quizResumed=false;}
+function restoreQuizProgress(){
+  try{
+    const d=JSON.parse(localStorage.getItem('kanti_quiz')||'null');
+    if(!d||!Array.isArray(d.answers)||Date.now()-d.at>7*864e5) return false;
+    const answers=d.answers.map((t,i)=>QUIZ[i]&&QUIZ[i].opts.find(o=>o.t===t)).slice(0,QUIZ.length);
+    const firstGap=answers.findIndex(a=>!a);
+    const answered=firstGap<0?answers.length:firstGap;
+    if(!answered) return false;
+    state.answers=answers.slice(0,answered);
+    state.qStep=Math.min(Number(d.step)||0,answered,QUIZ.length-1);
+    return true;
+  }catch(e){return false;}
+}
+function restartQuiz(){clearQuizProgress();state.qStep=0;state.answers=[];renderQuiz();}
 
 // Merge the server's result into the profile. The local pass still supplies culture/spice
 // (fun fact) and the user's chosen goal; skin, dosha and ingredient guidance come from the API.
@@ -71,6 +99,13 @@ function pickForSlot(slot,prof,todFilter){
   return (inStock.length && scoreProduct(inStock[0],prof)>=scoreProduct(cands[0],prof)-2) ? inStock[0] : cands[0];
 }
 function buildRoutine(prof,tod){
+  // The AI routine for this profile, when it has arrived (reco.js); otherwise the rules below.
+  const r=recoNow();
+  if(r && prof===state.profile){
+    const steps=(tod==='AM'?r.am:r.pm)||[];
+    const out=steps.filter(s=>prod(s.id)).map(s=>({slot:s.slot,p:prod(s.id),why:s.why}));
+    if(out.length) return out;
+  }
   // ordered slots
   let order = tod==='AM'
     ? ['Cleanse','Tone','Treat','Moisturise','Protect']
@@ -82,8 +117,7 @@ function buildRoutine(prof,tod){
       const why=[];
       if(p.dosha.includes(prof.dosha))why.push(DOSHA[prof.dosha].name);
       if(p.skin.includes(prof.skin))why.push(SKIN_LABEL[prof.skin].toLowerCase()+' skin');
-      p._why = why.length? 'matches your '+why.join(' + ') : 'a universal step';
-      steps.push({slot,p});
+      steps.push({slot,p,why:why.length? 'Matches your '+why.join(' + ') : 'A universal step'});
     }
   });
   return steps;
@@ -104,9 +138,13 @@ function render(){
   else if(state.view==='admin')renderAdmin();
   else if(state.view==='privacy')renderPrivacy();
   else if(state.view==='verify')renderVerify();
+  else if(state.view==='routine')renderRoutine();
+  else if(state.view==='saved')renderSaved();
+  else if(state.view==='compare')renderCompare();
   else if(AUTH_VIEWS.includes(state.view))renderAuth(state.view);
   hideTip();
   enhanceTips(app);
+  updateProfileChip(); renderCompareBar();
 }
 
 function renderHome(){
@@ -165,13 +203,21 @@ function renderHome(){
   </section>
 
   <section class="section wrap" style="padding-top:0">
-    <div class="section-head"><div class="eyebrow">Bestsellers</div><h2>A few favourites</h2></div>
-    <div class="grid">${PRODUCTS.slice(0,3).map(cardHTML).join('')}</div>
+    ${state.profile
+      ? `<div class="section-head"><div class="eyebrow">Picked for you</div><h2>For your ${esc(DOSHA[state.profile.dosha].name)} nature</h2></div>
+         <div class="grid">${homePicks().map(cardHTML).join('')}</div>`
+      : `<div class="section-head"><div class="eyebrow">Bestsellers</div><h2>A few favourites</h2></div>
+         <div class="grid">${PRODUCTS.slice(0,3).map(cardHTML).join('')}</div>`}
   </section>
 
   ${footerHTML()}`;
 }
 
+function homePicks(){
+  const r=recoNow();
+  const ids=[...(r?(r.addons||[]).map(a=>a.id):[]),...routineIds()].filter((id,i,a)=>a.indexOf(id)===i&&prod(id)&&!soldOut(prod(id)));
+  return ids.slice(0,3).map(prod);
+}
 function renderQuiz(){
   const step=QUIZ[state.qStep];
   const chosen=state.answers[state.qStep];
@@ -180,6 +226,7 @@ function renderQuiz(){
   <div class="quiz">
     <div class="progress"><div style="width:${pct}%"></div></div>
     <div class="progress-label"><span>Question ${state.qStep+1} of ${QUIZ.length}</span><span>${SKIN_or_DOSHA(state.qStep)}</span></div>
+    ${state.quizResumed&&!state.classifying?`<div class="resume-note">↺ Picked up where you left off. <button class="link-btn" data-act="restartQuiz">Start over</button></div>`:''}
     <h2 class="q-title">${step.q}</h2>
     <p class="q-sub">${step.sub}</p>
     <div class="options">
@@ -191,7 +238,7 @@ function renderQuiz(){
     </div>
     <div class="quiz-nav">
       <button class="btn btn-ghost" ${state.qStep===0?'data-go="home"':'data-act="prevQ"'} ${state.classifying?'disabled':''}>← Back</button>
-      <button class="btn btn-primary" data-act="nextQ" ${chosen&&!state.classifying?'':'disabled'}>${state.classifying?'Reading your skin…':state.qStep===QUIZ.length-1?'See my routine':'Next'}</button>
+      <button class="btn btn-primary" data-act="nextQ" ${chosen&&!state.classifying?'':'disabled'}>${state.classifying==='building'?'Building your routine…':state.classifying?'Reading your skin…':state.qStep===QUIZ.length-1?'See my routine':'Next'}</button>
     </div>
   </div>`;
 }
@@ -208,9 +255,10 @@ function funFactHTML(prof){
 }
 function renderResults(){
   const prof=state.profile;const d=DOSHA[prof.dosha];
+  ensureReco();
   const steps=buildRoutine(prof,state.tod);
-  const weekly=PRODUCTS.filter(p=>p.slot==='Weekly').map(p=>({slot:'Weekly',p}))
-      .sort((a,b)=>scoreProduct(b.p,prof)-scoreProduct(a.p,prof)).slice(0,1);
+  const wk=weeklyStep(prof), weekly=wk?[wk]:[];
+  const tot=routineTotal(prof);
   const concernTxt = prof.concern? ` We’ve prioritised your goal: <b>${esc(prof.concern)}</b>.`:'';
   const look = prof.lookFor||d.look, avoid = prof.avoid||d.avoid;
   const srcNote = {gemini:'✦ Personalised by Kanti AI from your answers',
@@ -226,8 +274,8 @@ function renderResults(){
         <div class="eyebrow">Your skin profile</div>
         <h2><em>${SKIN_LABEL[prof.skin]}</em> skin · ${d.name}-leaning</h2>
         <p>Your skin reads as ${SKIN_LABEL[prof.skin].toLowerCase()} with a ${d.name} tendency — ${d.note.toLowerCase()}${concernTxt}</p>
-        ${prof.source==='gemini'&&prof.rationale?`<p class="rationale">${esc(prof.rationale)}</p>`:''}
-        ${srcNote?`<div class="src-note">${srcNote}</div>`:''}
+        ${recoNow()&&recoNow().summary?recoIntroHTML():(prof.source==='gemini'&&prof.rationale?`<p class="rationale">${esc(prof.rationale)}</p>`:'')}
+        ${recoStatusHTML()||(srcNote?`<div class="src-note">${srcNote}</div>`:'')}
       </div>
       <div class="dosha-badge">
         <div class="big" style="background:${d.color}"></div>
@@ -251,7 +299,7 @@ function renderResults(){
           <button class="${state.tod==='PM'?'active':''}" data-act="setTod" data-arg="PM">🌙 Evening</button>
         </div>
       </div>
-      <p class="routine-hint">Tick each step off as you go — finish morning and evening to grow your streak.</p>
+      <p class="routine-hint">Tick each step off as you go — finish morning and evening to grow your streak. <button class="link-btn" data-go="routine">Open my routine page →</button></p>
       ${steps.map((s,i)=>routineStepHTML(s,i+1,state.tod,i,true)).join('')}
     </div>
 
@@ -260,12 +308,15 @@ function renderResults(){
       ${weekly.map((s,i)=>routineStepHTML(s,i+1,'WK',i,false)).join('')}
     </div>
 
-    <div class="rv" style="--d:.68s;display:flex;gap:14px;flex-wrap:wrap;margin-top:34px">
-      <button class="btn btn-gold" data-act="addWholeRoutine">Add full routine to bag</button>
+    <div class="rv" style="--d:.6s">${tipsHTML()}</div>
+
+    <div class="rv" style="--d:.68s;display:flex;gap:14px;flex-wrap:wrap;margin-top:34px;align-items:center">
+      <button class="btn btn-gold" data-act="addWholeRoutine">Add full routine to bag · ${tot.n} products · ${money(tot.cents/100)}</button>
       <button class="btn btn-ghost" data-act="shareResult">Share my result</button>
       <button class="btn btn-ghost" data-go="shop">Keep browsing</button>
       <button class="btn btn-ghost" data-go="quiz">Retake quiz</button>
     </div>
+    <div class="rv" style="--d:.76s">${addonsHTML()}${beyondHTML()}</div>
   </div>
   ${footerHTML()}`;
   enhanceTips(app);
@@ -300,7 +351,7 @@ function routineStepHTML(s,n,tod,idx,checkable){
     <div class="rs-body">
       <span class="slot">${s.slot}</span>
       <b>${esc(p.name)}</b>
-      <small>${p._why?('✓ '+esc(p._why)):esc(p.benefit)}${soldOut(p)?' · <span class="stock-flag out inline">Sold out</span>':''}</small>
+      <small>${s.why?('✓ '+esc(s.why)):esc(p.benefit)}${soldOut(p)?' · <span class="stock-flag out inline">Sold out</span>':''}</small>
     </div>
     <span class="rs-price">${money(p.price)}</span>
     <button class="btn btn-primary btn-sm" data-act="addToCart" data-arg="${esc(p.id)}" ${soldOut(p)?'disabled':''}>Add</button>
@@ -308,13 +359,10 @@ function routineStepHTML(s,n,tod,idx,checkable){
   </div>`;
 }
 function addWholeRoutine(){
-  const prof=state.profile;
-  const ids=new Set();
-  buildRoutine(prof,'AM').forEach(s=>ids.add(s.p.id));
-  buildRoutine(prof,'PM').forEach(s=>ids.add(s.p.id));
-  const weekly=pickForSlot('Weekly',prof); if(weekly) ids.add(weekly.id);
+  const prof=state.profile; if(!prof){go('quiz');return;}
+  const ids=routineIds(prof);
   let added=0, out=0;
   ids.forEach(id=>{ addToCart(id,true) ? added++ : (soldOut(prod(id))&&out++); });
-  toast(`${added} product${added===1?'':'s'} added to bag${out?` · ${out} sold out`:''}`);
+  toast(added?`${added} product${added===1?'':'s'} added to bag${out?` · ${out} sold out`:''}`:(out?`${out} sold out`:'Your routine is already in your bag'));
   openCart();
 }

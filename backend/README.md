@@ -38,6 +38,11 @@ Then edit `.env`:
 - **`GEMINI_API_KEY`** *(optional)* — makes quiz results AI-driven. Blank = built-in rule-based
   classifier. Keep it in `.env` only. **`GEMINI_MODEL`** is a comma-separated list tried in order
   (default `gemini-flash-lite-latest,gemini-3.5-flash-lite`, 8s each); if all fail, the rules answer.
+  The same key powers the AI routine, "Beyond Kanti" and the Ask Kanti chat (see below).
+- **`BEYOND_RETAILERS`** *(optional)* — which shops "Beyond Kanti" links to (default
+  `nykaa,amazon,sephora,ulta`; edit `src/links.js` to add more). **`BEYOND_ALLOWED_DOMAINS`** adds
+  extra domains (e.g. brand sites) whose product pages may be shown after checking.
+  **`GEMINI_SEARCH_MODEL`** picks the model for live Google Search (defaults to `GEMINI_MODEL`).
 - **`SMTP_*`** *(optional)* — blank = a free Ethereal **test** inbox: emails are only viewable via a
   preview link and are **never delivered** to a real inbox. For real delivery with Gmail:
   `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER=you@gmail.com`, `SMTP_PASS=<16-char App
@@ -84,7 +89,9 @@ see it in **Account**, with the confirmation email link, reorder, quiz history a
 | Email | `src/email.js` | Saved to an **outbox** table, then sent; failures retry (1m, 5m, 30m, 2h, 12h) then show as failed on the admin page. Order, shipping, cancellation, verification and reset emails. |
 | Backups | `src/backup.js`, `scripts/` | Daily automatic copy, newest 14 kept in `backups/`. |
 | Logging | `src/log.js` | JSON lines in production; every response has an `X-Request-Id`, quoted in error messages. Optional Sentry via `SENTRY_DSN`. |
-| AI quiz | `src/ai.js` | Gemini when a key is set, otherwise rule-based. Answers are sanitised first. |
+| AI quiz | `src/ai.js` | Gemini when a key is set, otherwise rule-based. Answers are sanitised first. Shared helpers: `geminiJSON` (model chain + timeouts), `geminiSearch` (Google Search grounding over REST). |
+| AI routine, Beyond Kanti, chat | `src/recommend.js` | Builds the routine from the live catalogue. Every AI answer is cleaned: unknown product ids dropped, wrong slots fixed, gaps filled from rules, text capped. Results cached in `ai_cache` (routine 3 days, outside products 7 days; the key includes the catalogue version, so product edits refresh it). |
+| Outside links | `src/links.js` | Retailer **search links** (always work) + **product pages** only after a check: https, approved retailer (every redirect hop too), page opens and its title names the product. |
 | Tests | `test/api.test.js`, `test/e2e/` | `npm test`, `npm run test:e2e`; both run on GitHub Actions (`.github/workflows/ci.yml`). |
 
 ### Database tables
@@ -93,7 +100,8 @@ see it in **Account**, with the confirmation email link, reorder, quiz history a
 `order_items` (prices snapshotted in cents; status `placed → shipped → delivered`, or
 `cancelled`, which restocks; tracking number) · `quiz_results` · `cart_items` · `routine_progress`
 · `email_outbox` · `email_verifications` / `password_resets` (only hashes of one-time tokens) ·
-`app_meta` (e.g. last backup time). Schema changes are migrations in `src/db.js` (append only).
+`app_meta` (e.g. last backup time) · `ai_cache` · `wishlist_items` · `stock_alerts` (one-time
+back-in-stock emails) · `skin_diary` (one entry per user per day). Schema changes are migrations in `src/db.js` (append only).
 
 ### API
 
@@ -124,6 +132,16 @@ GET    /api/quiz/history
 
 GET    /api/routine | PUT /api/routine { date, done, streak, lastComplete }
 
+POST   /api/recommend         { profile:{skin,dosha,concern,lookFor,avoid} }
+       → { summary, am:[{id,slot,why}], pm, weekly, addons, skip, why:{id:text}, tips, change, source }
+POST   /api/recommend/beyond  { profile } → { items:[{title, why, ingredients, search:[{retailer,url}],
+       products:[{name, kind:'page'|'search', url|links}]}], note, grounded, source }
+POST   /api/guide             { messages:[{role:'user'|'guide', text}], profile } → { reply, products, followups }
+
+GET    /api/wishlist | PUT/DELETE /api/wishlist/:id | POST /api/wishlist/merge { items }
+POST   /api/products/:id/notify { email }   (sold-out only; signed in uses the account email)
+GET    /api/diary | PUT /api/diary/:YYYY-MM-DD { rating 1–5, tags, note } | DELETE /api/diary/:day
+
 POST   /api/orders        { items:[{id,qty}], ship_to:{name,address,city,zip,…}, save_details }
 GET    /api/orders | GET /api/orders/:order_no | POST /api/orders/:order_no/cancel   (until shipped)
 
@@ -132,12 +150,21 @@ GET    /api/admin/stats
 GET    /api/admin/products | POST /api/admin/products | PATCH/DELETE /api/admin/products/:id
 GET    /api/admin/orders?status= | PATCH /api/admin/orders/:order_no { status, tracking_no }
 GET    /api/admin/emails | POST /api/admin/emails/retry | POST /api/admin/backup
+POST   /api/admin/ai-cache/clear
 ```
 
 Stock is taken inside the order's database transaction, so two people can never buy the last
 item; deleting a product that appears in past orders archives (hides) it instead.
 
-Everything except products, health, quiz classify and the auth routes needs a signed-in session.
+Everything except products, health, quiz classify, recommend/beyond/guide, notify and the auth
+routes needs a signed-in session. The AI routes have their own per-IP hourly limits
+(`RATE_AI_MAX`, default 60; `RATE_GUIDE_MAX`, 40) because each call costs money.
+
+**About outside product links:** Gemini makes up plausible but non-existent product URLs (we tested:
+every Amazon link it wrote was a 404), so AI-written links are never shown unchecked. With a key
+whose plan includes Google Search grounding, real product pages are found live and checked; on a
+free-tier key that returns 429 for search, so Kanti shows the AI's named example products with a
+retailer search for each, plus generic search links — every link works.
 Order prices, shipping and totals are always worked out on the server from the catalogue —
 whatever price a browser sends is ignored.
 
@@ -146,7 +173,9 @@ whatever price a browser sends is ignored.
 Nothing secret. The session cookie is httpOnly (page scripts can't read it); a `kanti_signed_in`
 hint cookie only tells the UI someone is signed in. Signed out, the bag and last quiz result are
 kept in `sessionStorage` (this tab) and the routine streak in `localStorage`; on sign-in they are
-merged into the account. Signing out clears them from the device.
+merged into the account. Signing out clears them from the device. Also in this browser only:
+a half-finished quiz (`localStorage`, 7 days), saved products while signed out (merged on
+sign-in), reminder times, the compare tray and the Ask Kanti conversation (`sessionStorage`).
 
 ## Deploying
 

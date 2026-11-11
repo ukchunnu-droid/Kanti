@@ -117,6 +117,14 @@ function passwordResetHtml(user, link) {
       <p style="color:#6B746C;font-size:13px">Didn't ask for this? You can ignore this email — your password won't change.</p>`);
 }
 
+function backInStockHtml(product, link) {
+  return shell(`
+      <h2 style="margin:0 0 6px;font-size:20px">${esc(product.name)} is back 🌿</h2>
+      <p style="color:#6B746C">You asked us to tell you when this was back in stock — it is, but stock is limited.</p>
+      <p style="margin:20px 0"><a href="${esc(link)}" style="background:#20453B;color:#FBF8EF;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">See it in the shop</a></p>
+      <p style="color:#6B746C;font-size:13px">This was a one-time alert. You won't get more emails about this product.</p>`);
+}
+
 // ---------- Outbox ----------
 const BACKOFF_MIN = [1, 5, 30, 120, 720]; // after attempt 1..5; attempt 6 failing = give up
 
@@ -207,6 +215,9 @@ module.exports = {
   }),
   queueVerification: (user, link) => queue({
     to: user.email, subject: 'Confirm your Kanti email', html: verifyEmailHtml(user, link), kind: 'verify',
+  }),
+  queueBackInStock: (to, product, link) => queue({
+    to, subject: `${product.name} is back in stock`, html: backInStockHtml(product, link), kind: 'restock', ref: product.id,
   }),
   processOutbox, startWorker, stopWorker, outbox, testHooks,
 };

@@ -17,12 +17,15 @@
     <div class="brand" data-go="home">Kan<span>ti</span></div>
     <nav class="nav-links">
       <button data-go="home">Home</button>
-      <button data-go="quiz">Find your routine</button>
+      <button data-go="quiz" id="navQuiz">Find your routine</button>
+      <button data-go="routine" id="navRoutine" class="hidden">My routine</button>
       <button data-go="shop">Shop</button>
       <button data-go="account" id="navAccount">Sign in</button>
       <button data-go="admin" id="navAdmin" class="hidden">Admin</button>
     </nav>
     <div class="nav-right">
+      <button class="profile-chip hidden" id="profileChip" data-go="results" title="Your skin profile — see your routine"></button>
+      <button class="icon-btn" data-go="saved" title="Saved for later" aria-label="Saved for later" id="navSaved">♡<span class="dot-count hidden" id="wishCount"></span></button>
       <button class="icon-btn" data-act="toggleTheme" title="Toggle light/dark" id="themeBtn">☾</button>
       <button class="icon-btn" data-go="account" title="My account" aria-label="My account" id="navAcctIcon">👤</button>
       <button class="cart-btn" data-act="openCart">
@@ -50,6 +53,13 @@
   <div class="modal" id="modal" style="position:relative"></div>
 </div>
 
+<!-- Compare tray -->
+<div class="compare-bar" id="compareBar" aria-live="polite"></div>
+
+<!-- Ask Kanti (chat) -->
+<button class="guide-fab" id="guideFab" data-act="guideToggle" aria-controls="guidePanel" aria-expanded="false">✦ Ask Kanti</button>
+<section class="guide-panel" id="guidePanel" aria-label="Ask Kanti — skincare guide" hidden></section>
+
 <div class="toast" id="toast"></div>
 
 <script src="/api.js" defer></script>
@@ -62,6 +72,10 @@
 <script src="/js/account.js" defer></script>
 <script src="/js/share.js" defer></script>
 <script src="/js/admin.js" defer></script>
+<script src="/js/reco.js" defer></script>
+<script src="/js/extras.js" defer></script>
+<script src="/js/routine.js" defer></script>
+<script src="/js/guide.js" defer></script>
 <script src="/js/app.js" defer></script>
 </body>
 </html>

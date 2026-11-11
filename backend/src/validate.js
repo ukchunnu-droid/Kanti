@@ -98,6 +98,16 @@ function routine(b) {
   return { routine: { date: b.date, done, streak, lastComplete } };
 }
 
+// One skin-diary entry: a 1–5 rating for the day, a few tags and a short note.
+const DIARY_TAGS = ['clear', 'glowing', 'calm', 'dry', 'oily', 'breakout', 'red', 'itchy', 'tired', 'stressed', 'slept well', 'new product'];
+function diaryEntry(b) {
+  if (!DATE_RE.test(b.day || '') || Number.isNaN(Date.parse(b.day))) return { error: 'Invalid date.' };
+  const rating = Number(b.rating);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return { error: 'Pick how your skin felt, from 1 to 5.' };
+  const tags = [...new Set((Array.isArray(b.tags) ? b.tags : []).filter((t) => DIARY_TAGS.includes(t)))];
+  return { entry: { day: b.day, rating, tags, note: text(b.note, 500) } };
+}
+
 // ---------- Admin: products ----------
 const SLOTS = ['Cleanse', 'Tone', 'Treat', 'Moisturise', 'Protect', 'Weekly'];
 const TODS = ['AM', 'PM', 'both'];
@@ -161,6 +171,6 @@ function productInput(b, { partial = false } = {}) {
 }
 
 module.exports = {
-  text, email, isEmail, passwordError, profileFields, shipTo, cartItems, quizResult, routine, productInput, slugify,
+  text, email, isEmail, passwordError, profileFields, shipTo, cartItems, quizResult, routine, diaryEntry, DIARY_TAGS, productInput, slugify,
   SKIN_TYPES, DOSHAS, SLOTS, TODS, CONCERNS,
 };

@@ -19,11 +19,11 @@ we deliberately move it into `backend/public/`).
 | E5 | Routine checklist / daily streak ⭐ | ✅ |
 | E6 | Save & retake comparison | ⬜ |
 | E7 | Seasonal recommendations (ritucharya) ⭐ | ⬜ |
-| E8 | Wishlist / favourites | ⬜ |
+| E8 | Wishlist / favourites | ✅ (A-series) |
 | E9 | Product reviews & ratings | ⬜ |
 | E10 | Mock "skin scan" (photo) | ⬜ |
-| E11 | Ask an Ayurvedic guide (chat) | ⬜ |
-| E12 | Skin diary / progress tracking | ⬜ |
+| E11 | Ask an Ayurvedic guide (chat) | ✅ (A-series) |
+| E12 | Skin diary / progress tracking | ✅ (A-series) |
 | E13 | Account / profile page (prototype) | ✅ |
 | E14 | Order-confirmation email preview (prototype) | ✅ |
 | **B1** | **Backend: auth + SQLite + email + AI quiz** | ✅ (in `backend/`) |
@@ -69,6 +69,24 @@ Agreed 2026-11-10; H1–H15 done the same day (`npm test` in `backend/` covers t
 | R11 | Dockerfile + Render blueprint; production config guard | ✅ |
 | R12 | Privacy page + "Download my data" | ✅ |
 | — | Payments (Stripe) — deliberately not done | ⬜ |
+
+## AI personalisation + usability (A-series) — done 2026-11-11
+Live in `backend/` (not ported to the prototype). Tests: 44 API + 12 e2e checks.
+
+| ID | Feature | Status |
+|----|---------|--------|
+| A1 | AI routine: Gemini picks real catalogue products per step with a personal "why"; add-ons, "probably skip", tips, what-changed-since-last-quiz; cached; rules fallback | ✅ |
+| A2 | "Why this suits you" on every card/modal; "Picked for you" on shop + home | ✅ |
+| A3 | Beyond Kanti: outside product types + retailer search links (option 1) + live-search product pages, only shown after checking (option 2; needs a key with Search grounding quota) | ✅ |
+| A4 | Header profile chip; shop opens on "Best match" | ✅ |
+| A5 | Add whole routine with total; bag "completes your routine" + free-shipping nudge | ✅ |
+| A6 | Quiz resumes after refresh (7 days) with "Start over" | ✅ |
+| A7 | Compare up to 3 (tray + side-by-side table, best fit highlighted) | ✅ |
+| A8 | Wishlist (account + signed-out, merged) and back-in-stock email alerts (one-time) | ✅ |
+| A9 | Empty search: "remove this filter → N products" + typo-tolerant closest matches | ✅ |
+| A10 | My routine page: checklist, calendar reminders (.ics), skin diary with 30-day chart | ✅ |
+| A11 | Ask Kanti chat (profile- and catalogue-aware, product cards, follow-ups) | ✅ |
+| A12 | Phones: bottom-sheet filters, sticky add-to-bag, compact header | ✅ |
 
 ## Priority next
 

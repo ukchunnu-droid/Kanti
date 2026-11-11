@@ -104,6 +104,13 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     for (let i = 0; i < 7; i++) { await page.click('.option'); await page.click('.quiz-nav .btn-primary'); await wait(40); }
     await page.waitForSelector('.profile-card');
     assert.match(await text('.profile-card h2'), /skin · \w+-leaning/);
+    // Personalised sections: profile chip, add-ons, outside products with real https links.
+    assert.ok(await page.$eval('#profileChip', (e) => !e.classList.contains('hidden')));
+    await page.waitForSelector('.beyond-card:not(.skeleton)', { timeout: 8000 });
+    const hrefs = await page.$$eval('.beyond-card a', (as) => as.map((a) => [a.href, a.target, a.rel]));
+    assert.ok(hrefs.length >= 4);
+    for (const [h, t, rel] of hrefs) { assert.match(h, /^https:\/\//); assert.equal(t, '_blank'); assert.match(rel, /noopener/); }
+    assert.match(await text('.beyond-note'), /Not sold or reviewed by Kanti/);
     await click('button', 'Add full routine to bag');
     await wait(200);
     assert.ok(Number(await text('#cartCount')) >= 5);
@@ -223,7 +230,8 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     const orderNo = await text('.confirm .order-no');
     await page.evaluate(async () => { await refreshProducts(); go('shop'); });
     assert.match(await text(card + ' .stock-flag'), /Sold out/);
-    assert.equal(await page.$eval(card + ' .btn', (b) => b.disabled), true);
+    assert.equal(await page.$eval(card + ' .card-foot .btn', (b) => b.textContent.trim()), 'Notify me', 'sold out → offer a back-in-stock alert');
+    assert.equal(await count(card + ' [data-act=addToCart]'), 0);
 
     // ship it from the admin orders tab (prompt answers TRACK-42)
     await page.evaluate(() => go('admin'));
@@ -243,10 +251,46 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     assert.equal(await count(card), 0, 'hidden product is gone from the shop');
   });
 
+  await t.test('saved, compare, routine page, quiz resume and Ask Kanti', async () => {
+    await page.evaluate(() => { state.profile = { skin: 'dry', dosha: 'vata', concern: 'dryness' }; stashState(); go('shop'); clearShopFilters(); });
+    await click('.card .heart');
+    await until(() => state.wish.length === 1);
+    assert.equal(await text('#wishCount'), '1');
+    await click('.card .cmp-toggle'); await click('.card:nth-child(2) .cmp-toggle');
+    await click('#compareBar button', 'Compare');
+    await until(() => state.view === 'compare');
+    assert.equal(await count('.compare-table thead th b'), 2);
+    await page.evaluate(() => go('saved'));
+    assert.equal(await count('.grid .card'), 1);
+    await page.evaluate(() => go('routine'));
+    assert.ok(await count('.rt-step') >= 7);
+    await click('.rt-step .step-no');
+    await until(() => Object.keys(routine.done).length === 1);
+    assert.ok(await count('.rating .rate') === 5, 'diary shown when signed in');
+    await click('.rating .rate', 'Good'); await click('#diarySave');
+    await until(() => state.diary.entries && state.diary.entries.length === 1);
+    // Half-finished quiz picks up where it left off after a reload.
+    await page.evaluate(() => go('quiz'));
+    for (let i = 0; i < 2; i++) { await page.click('.option'); await page.click('.quiz-nav .btn-primary'); await wait(40); }
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.evaluate(() => go('quiz'));
+    assert.equal(await page.evaluate(() => state.qStep), 2);
+    await click('.resume-note .link-btn', 'Start over');
+    assert.equal(await page.evaluate(() => state.qStep), 0);
+    // Chat
+    await page.evaluate(() => go('shop'));
+    await page.click('#guideFab');
+    await page.type('#guideInput', 'What does neem do?');
+    await click('.gp-form button', 'Send');
+    await until(() => state.guide.msgs.length === 2 && !state.guide.busy);
+    assert.equal(await count('.gp-msg.user'), 1); assert.equal(await count('.gp-msg.guide'), 1);
+    await click('.gp-head .icon-btn');
+  });
+
   await t.test('mobile width has no horizontal scroll; dark mode renders', async () => {
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
     await page.setViewport({ width: 390, height: 844 });
-    for (const v of ['shop', 'admin', 'account', 'privacy']) {
+    for (const v of ['shop', 'admin', 'account', 'privacy', 'routine', 'saved', 'home']) {
       await page.evaluate((v) => go(v), v);
       await wait(400);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `overflow on ${v}`);

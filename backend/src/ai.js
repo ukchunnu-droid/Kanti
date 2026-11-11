@@ -102,23 +102,77 @@ async function classifyQuiz(rawAnswers) {
 }
 
 async function classifyCore(answers) {
-  if (process.env.GEMINI_API_KEY) {
-    // Try each model in turn; if all are slow or unavailable (e.g. Google's "high demand" 503s),
-    // the rule-based classifier answers so the quiz always works.
-    for (const modelName of GEMINI_MODELS) {
-      try {
-        const result = await Promise.race([
-          geminiClassify(answers, modelName),
-          new Promise((_, reject) => setTimeout(() => reject(new Error(`timed out after ${PER_MODEL_TIMEOUT_MS / 1000}s`)), PER_MODEL_TIMEOUT_MS).unref()),
-        ]);
-        return { ...result, model: modelName };
-      } catch (e) {
-        log.warn('ai: model failed, trying the next', { model: modelName, error: e.message.replace(/^.*?\]: /, '').slice(0, 160) });
-      }
-    }
-    log.warn('ai: all Gemini models failed — using the rule-based classifier');
+  if (hasKey()) {
+    try {
+      const { model } = await runModels((m) => geminiClassify(answers, m), PER_MODEL_TIMEOUT_MS);
+      return model;
+    } catch { log.warn('ai: all Gemini models failed — using the rule-based classifier'); }
   }
   return ruleBasedClassify(answers);
 }
 
-module.exports = { classifyQuiz };
+const hasKey = () => !!process.env.GEMINI_API_KEY;
+
+// Tries each configured model in turn (each with its own timeout); resolves with the first success.
+// If all are slow or unavailable (e.g. Google's "high demand" 503s) it rejects, and callers fall back to rules.
+async function runModels(fn, timeoutMs) {
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      const result = await Promise.race([
+        fn(modelName),
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`timed out after ${timeoutMs / 1000}s`)), timeoutMs).unref()),
+      ]);
+      return { model: { ...result, model: modelName }, modelName };
+    } catch (e) {
+      log.warn('ai: model failed, trying the next', { model: modelName, error: String(e.message).replace(/^.*?\]: /, '').slice(0, 160) });
+    }
+  }
+  throw new Error('all Gemini models failed');
+}
+
+// Sends a prompt and returns parsed JSON (an object). Throws if every model fails.
+async function geminiJSON(prompt, { timeoutMs = 15000, temperature = 0.5 } = {}) {
+  const { GoogleGenerativeAI } = require('@google/generative-ai');
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const { model, modelName } = await runModels(async (name) => {
+    const m = genAI.getGenerativeModel({ model: name, generationConfig: { responseMimeType: 'application/json', temperature } });
+    const out = JSON.parse((await m.generateContent(prompt)).response.text());
+    return { data: out };
+  }, timeoutMs);
+  return { data: model.data, model: modelName };
+}
+
+// Gemini with live Google Search ("grounding"). The installed SDK predates this tool, so it calls the REST API.
+// Returns { text, sources: [{uri, title}] }. Needs a key whose plan includes search grounding
+// (free-tier keys often get a 429 here — callers treat that as "not available").
+const SEARCH_MODELS = (process.env.GEMINI_SEARCH_MODEL || GEMINI_MODELS.join(',')).split(',').map((m) => m.trim()).filter(Boolean);
+let searchBlockedUntil = 0; // after a quota error, don't retry for a while
+async function geminiSearch(prompt, { timeoutMs = 20000 } = {}) {
+  if (!hasKey() || Date.now() < searchBlockedUntil) throw new Error('search grounding unavailable');
+  let lastErr;
+  for (const model of SEARCH_MODELS) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }] }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 429) { searchBlockedUntil = Date.now() + 30 * 60e3; throw new Error('search grounding quota exceeded (429)'); }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const c = (j.candidates || [])[0] || {};
+      const text = ((c.content && c.content.parts) || []).map((p) => p.text || '').join('');
+      const sources = (((c.groundingMetadata || {}).groundingChunks) || [])
+        .map((g) => g.web).filter((w) => w && w.uri).map((w) => ({ uri: w.uri, title: w.title || '' }));
+      return { text, sources, model };
+    } catch (e) {
+      lastErr = e;
+      log.warn('ai: search grounding failed', { model, error: String(e.message).slice(0, 160) });
+      if (Date.now() < searchBlockedUntil) break;
+    }
+  }
+  throw lastErr || new Error('search grounding failed');
+}
+
+module.exports = { classifyQuiz, geminiJSON, geminiSearch, hasKey, DOSHA_GUIDE, SKIN_TYPES, DOSHAS };

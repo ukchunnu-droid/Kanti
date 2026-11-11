@@ -74,4 +74,8 @@ The real app is **`backend/public/index.html`** (storefront) + **`backend/public
 - **Done (H16):** Gemini key set (model fallback chain, see README); real email via Gmail SMTP.
 - **Done (R1–R12):** admin, data-driven shop, stock, order lifecycle, email outbox/verification,
   backups, logging, module split + strict CSP, E2E + CI, Docker/Render, privacy. Payments not done.
-- **Next:** E6–E12 (frontend in `backend/public/js/`).
+- **Done (A1–A12, 2026-11-11):** AI routine + "why" per product (`src/recommend.js`), Beyond Kanti
+  outside products (`src/links.js` — never show an unchecked AI-written URL), profile chip, compare,
+  wishlist, back-in-stock alerts, quiz resume, routine page + reminders + skin diary, Ask Kanti chat,
+  phone layouts. Frontend: `js/reco.js`, `js/extras.js`, `js/routine.js`, `js/guide.js`. Not ported to the prototype.
+- **Next:** E6, E7 (seasonal), E9 (reviews), E10; payments deliberately skipped.

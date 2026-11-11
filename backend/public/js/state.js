@@ -88,8 +88,10 @@ async function afterSignIn(me){
   try{setCartFromServer((await API.mergeCart(state.cart.map(c=>({id:c.id,qty:c.qty})))).items);}catch(e){}
   // 2. A quiz taken while signed out goes into the account's quiz history.
   await syncSkinProfile();
-  // 3. Routine streak.
+  // 3. Routine streak, saved products; the diary reloads for this account.
   await syncRoutine();
+  await syncWishlist();
+  state.diary.entries=null; state.diary.form=null;
   const next=state.next||'account'; state.next=null;
   go(next);
 }
@@ -105,7 +107,12 @@ async function syncSkinProfile(){
 async function signOut(){
   try{await API.logout();}catch(e){}
   resetSession(); state.profile=null; state.cart=[]; routine=blankProgress();
-  try{localStorage.removeItem('kanti_routine');}catch(e){}
+  state.wish=[]; state.alerts=[]; state.diary={entries:null,tags:[],loading:false,form:null};
+  state.reco={key:'',data:null,pending:null}; state.beyond={key:'',data:null,pending:null,error:null};
+  state.guide.msgs=[]; if(state.guide.open) guideToggle();
+  try{localStorage.removeItem('kanti_routine');localStorage.removeItem('kanti_wish');localStorage.removeItem('kanti_quiz');
+      sessionStorage.removeItem('kanti_reco');sessionStorage.removeItem('kanti_guide');}catch(e){}
+  updateWishCount();
   updateCartCount(false); updateHeader(); go('home'); toast('Signed out');
 }
 function updateHeader(){
@@ -149,7 +156,7 @@ function toggleStep(tod,idx){
   const k=tod+':'+idx;
   routine.done[k]=!routine.done[k];
   maybeCompleteDay();           // updates streak + saves
-  const y=window.scrollY; renderResults(); window.scrollTo(0,y);
+  const y=window.scrollY; render(); window.scrollTo(0,y);
 }
 function maybeCompleteDay(){
   if(!state.profile){saveProgress();return;}

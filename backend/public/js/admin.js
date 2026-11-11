@@ -90,6 +90,13 @@ function adminOverviewHTML() {
         <div class="acct-row"><span class="ak">Last backup</span><span>${s.last_backup_at ? fmtDateTime(s.last_backup_at) : 'never'}</span></div>
         <button class="btn btn-ghost btn-sm" style="margin-top:12px" data-act="adminBackup">Back up now</button>
       </div>
+      <div class="acct-card">
+        <h3>AI recommendations</h3>
+        <div class="acct-row"><span class="ak">Mode</span><span>${s.ai_mode === 'gemini' ? '✦ Gemini (with rule-based fallback)' : 'Rules only — set GEMINI_API_KEY for AI'}</span></div>
+        <div class="acct-row"><span class="ak">Saved results</span><span>${s.ai_cache || 0}</span></div>
+        <p class="muted-p">Routines are reused for 3 days and outside suggestions for 7, and refresh automatically when you edit products.</p>
+        <button class="btn btn-ghost btn-sm" style="margin-top:12px" data-act="adminClearAiCache">Refresh all AI results</button>
+      </div>
     </div>`;
 }
 const fmtDateTime = (iso) => { try { return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return iso; } };
@@ -98,6 +105,11 @@ async function adminBackup(_a, _b, el) {
   el.disabled = true; el.textContent = 'Backing up…';
   try { const r = await API.admin.backup(); toast('Backup saved: ' + r.file); state.admin.stats = null; renderAdmin(); }
   catch (e) { toast(e.message); el.disabled = false; el.textContent = 'Back up now'; }
+}
+async function adminClearAiCache(_a, _b, el) {
+  el.disabled = true;
+  try { const r = await API.admin.clearAiCache(); toast(`Cleared ${r.cleared} saved AI result${r.cleared === 1 ? '' : 's'}`); state.admin.stats = null; renderAdmin(); }
+  catch (e) { toast(e.message); el.disabled = false; }
 }
 async function adminRetryEmails(_a, _b, el) {
   el.disabled = true;

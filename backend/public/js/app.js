@@ -20,8 +20,14 @@ const ACTIONS = {
   // bag
   addToCart: (id) => addToCart(id), removeLine: (id) => removeLine(id),
   changeQty: (id, d) => changeQty(id, Number(d)),
-  // shop
-  shopFilter, shopSearch, shopSort, clearShopFilters,
+  restartQuiz, retryBeyond, addFromBag,
+  // shop, saved, compare, alerts
+  shopFilter, shopSearch, shopSort, clearShopFilters, openFilters, closeFilters,
+  toggleWish, moveWishToBag, compareWish, toggleCompare, clearCompare, notifyMe, notifySubmit: (id) => notifySubmit(id),
+  // routine page, diary, reminders
+  setReminder, downloadReminders, diaryRate, diaryTag, diaryNote, diarySave, diarySignIn,
+  // Ask Kanti
+  guideToggle, guideSend, guideClear, guideAsk: (t) => guideAsk(t),
   // auth, checkout, account
   submitAuth: (view) => submitAuth(view), placeOrder, saveProfileEdits, changePassword, deleteAccount, signOut,
   fmtCard: (_v, _b, el) => fmtCard(el), fmtExp: (_v, _b, el) => fmtExp(el),
@@ -31,7 +37,7 @@ const ACTIONS = {
   reorder: (no) => reorder(no), openOrderEmail: (no) => openOrderEmail(no), cancelOrder, resendVerification,
   // admin
   adminTab, adminEditProduct, adminCancelEdit, adminSaveProduct, adminToggleProduct, adminDeleteProduct,
-  adminOrderFilter, adminSetStatus, adminBackup, adminRetryEmails, adminArtPreview,
+  adminOrderFilter, adminSetStatus, adminBackup, adminRetryEmails, adminArtPreview, adminClearAiCache,
 };
 function runAction(name, a, b, el, e) {
   const fn = Object.prototype.hasOwnProperty.call(ACTIONS, name) ? ACTIONS[name] : null;
@@ -62,7 +68,7 @@ document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('div[data-act]')) {
     e.preventDefault(); runAction(e.target.dataset.act, e.target.dataset.arg, e.target.dataset.arg2, e.target, e);
   }
-  if (e.key === 'Escape') { closeModal(); closeCart(); }
+  if (e.key === 'Escape') { closeModal(); closeCart(); closeFilters(); if (state.guide.open) guideToggle(); }
 });
 
 /* ---------- Boot ---------- */
@@ -80,7 +86,9 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   restoreState();
+  restoreReco();
   updateCartCount(false);
+  syncWishlist();
   if(API.isAuthed()){
     // Signed in from an earlier visit: load the saved bag and routine.
     API.cart().then(r=>{setCartFromServer(r.items);if(state.view==='checkout')render();})

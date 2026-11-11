@@ -50,6 +50,21 @@ const API = {
   routine() { return this.req('/api/routine'); },
   saveRoutine(r) { return this.req('/api/routine', 'PUT', r); },
 
+  // AI recommendations + chat
+  recommend(profile) { return this.req('/api/recommend', 'POST', { profile }); },
+  beyond(profile) { return this.req('/api/recommend/beyond', 'POST', { profile }); },
+  guide(messages, profile) { return this.req('/api/guide', 'POST', { messages, profile }); },
+
+  // wishlist, stock alerts, skin diary
+  wishlist() { return this.req('/api/wishlist'); },
+  wishAdd(id) { return this.req('/api/wishlist/' + encodeURIComponent(id), 'PUT'); },
+  wishRemove(id) { return this.req('/api/wishlist/' + encodeURIComponent(id), 'DELETE'); },
+  wishMerge(items) { return this.req('/api/wishlist/merge', 'POST', { items }); },
+  notifyMe(id, email) { return this.req('/api/products/' + encodeURIComponent(id) + '/notify', 'POST', { email }); },
+  diary() { return this.req('/api/diary'); },
+  saveDiary(day, e) { return this.req('/api/diary/' + encodeURIComponent(day), 'PUT', e); },
+  deleteDiary(day) { return this.req('/api/diary/' + encodeURIComponent(day), 'DELETE'); },
+
   // orders
   createOrder(d) { return this.req('/api/orders', 'POST', d); },
   orders() { return this.req('/api/orders'); },
@@ -68,5 +83,6 @@ const API = {
     emails() { return API.req('/api/admin/emails'); },
     retryEmails() { return API.req('/api/admin/emails/retry', 'POST'); },
     backup() { return API.req('/api/admin/backup', 'POST'); },
+    clearAiCache() { return API.req('/api/admin/ai-cache/clear', 'POST'); },
   },
 };

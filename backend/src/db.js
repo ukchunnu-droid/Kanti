@@ -162,6 +162,35 @@ const MIGRATIONS = [
     CREATE INDEX idx_outbox_due ON email_outbox(status, next_attempt_at);
 
     CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT);`),
+
+  // 4 — AI recommendation cache, wishlist, back-in-stock alerts, skin diary
+  () => db.exec(`
+    CREATE TABLE ai_cache (
+      key TEXT PRIMARY KEY, data_json TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE TABLE wishlist_items (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, product_id)
+    );
+    CREATE TABLE stock_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL, notified_at TEXT
+    );
+    CREATE UNIQUE INDEX idx_stock_alerts_open ON stock_alerts(email, product_id) WHERE notified_at IS NULL;
+    CREATE TABLE skin_diary (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      tags_json TEXT NOT NULL DEFAULT '[]',
+      note TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );`),
 ];
 
 function migrate() {
@@ -503,6 +532,55 @@ module.exports = {
   setMeta: (key, value) => db.prepare(`INSERT INTO app_meta (key, value) VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(key, String(value)),
 
+  // AI cache (recommendations are reused until the catalogue changes or they expire)
+  catalogVersion() {
+    const r = db.prepare('SELECT count(*) n, max(updated_at) u FROM products WHERE active = 1').get();
+    return `${r.n}:${r.u || ''}`;
+  },
+  cacheGet(key, maxAgeMs) {
+    const r = db.prepare('SELECT data_json, created_at FROM ai_cache WHERE key = ?').get(key);
+    if (!r || Date.now() - Date.parse(r.created_at) > maxAgeMs) return null;
+    try { return JSON.parse(r.data_json); } catch { return null; }
+  },
+  cacheSet(key, data) {
+    db.prepare(`INSERT INTO ai_cache (key, data_json, created_at) VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET data_json = excluded.data_json, created_at = excluded.created_at`).run(key, JSON.stringify(data), now());
+    db.prepare('DELETE FROM ai_cache WHERE created_at < ?').run(new Date(Date.now() - 30 * 86400e3).toISOString());
+  },
+  clearAiCache: () => db.prepare('DELETE FROM ai_cache').run().changes,
+
+  // wishlist
+  getWishlist: (userId) => db.prepare(`SELECT w.product_id AS id FROM wishlist_items w JOIN products p ON p.id = w.product_id
+    WHERE w.user_id = ? AND p.active = 1 ORDER BY w.created_at DESC`).all(userId).map((r) => r.id),
+  addWishlist: (userId, productId) => db.prepare(`INSERT OR IGNORE INTO wishlist_items (user_id, product_id, created_at) VALUES (?, ?, ?)`)
+    .run(userId, productId, now()),
+  removeWishlist: (userId, productId) => db.prepare('DELETE FROM wishlist_items WHERE user_id = ? AND product_id = ?').run(userId, productId),
+
+  // back-in-stock alerts
+  addStockAlert(email, userId, productId) {
+    return db.prepare(`INSERT OR IGNORE INTO stock_alerts (email, user_id, product_id, created_at) VALUES (?, ?, ?, ?)`)
+      .run(email, userId || null, productId, now()).changes > 0;
+  },
+  // Claims the open alerts for a product that is back in stock (each alert is sent once).
+  takeStockAlerts(productId) {
+    return db.transaction(() => {
+      const rows = db.prepare('SELECT * FROM stock_alerts WHERE product_id = ? AND notified_at IS NULL').all(productId);
+      db.prepare('UPDATE stock_alerts SET notified_at = ? WHERE product_id = ? AND notified_at IS NULL').run(now(), productId);
+      return rows;
+    })();
+  },
+  userStockAlerts: (userId) => db.prepare('SELECT product_id AS id FROM stock_alerts WHERE user_id = ? AND notified_at IS NULL').all(userId).map((r) => r.id),
+
+  // skin diary (one entry per day)
+  getDiary: (userId, limit = 90) => db.prepare(`SELECT day, rating, tags_json, note FROM skin_diary WHERE user_id = ?
+    ORDER BY day DESC LIMIT ?`).all(userId, limit).map((r) => ({ day: r.day, rating: r.rating, tags: JSON.parse(r.tags_json), note: r.note })),
+  setDiary(userId, e) {
+    db.prepare(`INSERT INTO skin_diary (user_id, day, rating, tags_json, note, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, day) DO UPDATE SET rating = excluded.rating, tags_json = excluded.tags_json, note = excluded.note, updated_at = excluded.updated_at`)
+      .run(userId, e.day, e.rating, JSON.stringify(e.tags), e.note, now());
+  },
+  deleteDiary: (userId, day) => db.prepare('DELETE FROM skin_diary WHERE user_id = ? AND day = ?').run(userId, day),
+
   // admin dashboard numbers
   stats() {
     const one = (sql, ...a) => db.prepare(sql).get(...a);
@@ -517,6 +595,7 @@ module.exports = {
       revenue_cents: one(`SELECT coalesce(sum(total_cents), 0) n FROM orders WHERE status != 'cancelled'`).n,
       emails,
       last_backup_at: this.getMeta('last_backup_at'),
+      ai_cache: one('SELECT count(*) n FROM ai_cache').n,
     };
   },
 
@@ -529,6 +608,9 @@ module.exports = {
       quiz_history: this.quizHistory(userId, 1000),
       saved_bag: this.getCart(userId),
       routine: this.getRoutine(userId),
+      wishlist: this.getWishlist(userId),
+      stock_alerts: this.userStockAlerts(userId),
+      skin_diary: this.getDiary(userId, 10000),
     };
   },
 

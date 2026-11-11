@@ -17,6 +17,7 @@ const email = require('./email');
 const backup = require('./backup');
 const log = require('./log');
 const { classifyQuiz } = require('./ai');
+const reco = require('./recommend');
 const { rateLimit } = require('./rate-limit');
 const v = require('./validate');
 
@@ -109,6 +110,17 @@ const verifyLimit = rateLimit({
 });
 const resetLimit = rateLimit({
   windowMs: 60 * 60e3, max: Number(process.env.RATE_RESET_MAX || 10), key: (req) => 'reset:' + ip(req),
+});
+
+// AI endpoints cost money per call, so they get their own per-IP limits.
+const aiLimit = rateLimit({
+  windowMs: 60 * 60e3, max: Number(process.env.RATE_AI_MAX || 60), key: (req) => 'ai:' + ip(req),
+});
+const guideLimit = rateLimit({
+  windowMs: 60 * 60e3, max: Number(process.env.RATE_GUIDE_MAX || 40), key: (req) => 'guide:' + ip(req),
+});
+const alertLimit = rateLimit({
+  windowMs: 60 * 60e3, max: Number(process.env.RATE_ALERT_MAX || 20), key: (req) => 'alert:' + ip(req),
 });
 
 // Wrap async handlers so thrown errors reach the JSON error handler.
@@ -303,6 +315,84 @@ app.put('/api/routine', requireAuth, (req, res) => {
   res.json({ routine });
 });
 
+// ---------- Recommendations (AI routine, Beyond Kanti, Ask Kanti) ----------
+// Signed in → the previous quiz result is used to explain what changed since last time.
+function previousQuiz(req) {
+  if (!req.userId) return null;
+  const h = db.quizHistory(req.userId, 2);
+  return h[1] || null;
+}
+app.post('/api/recommend', optionalAuth, aiLimit, h(async (req, res) => {
+  const r = await reco.recommend((req.body || {}).profile, { previous: previousQuiz(req) });
+  if (r.error) return bad(res, r.error);
+  res.json(r);
+}));
+app.post('/api/recommend/beyond', optionalAuth, aiLimit, h(async (req, res) => {
+  const r = await reco.beyond((req.body || {}).profile);
+  if (r.error) return bad(res, r.error);
+  res.json(r);
+}));
+app.post('/api/guide', optionalAuth, guideLimit, h(async (req, res) => {
+  const body = req.body || {};
+  const r = await reco.guide(body.messages, body.profile);
+  if (r.error) return bad(res, r.error);
+  res.json(r);
+}));
+
+// ---------- Wishlist ----------
+app.get('/api/wishlist', requireAuth, (req, res) => res.json({ items: db.getWishlist(req.userId) }));
+app.put('/api/wishlist/:id', requireAuth, (req, res) => {
+  const p = db.getProduct(String(req.params.id));
+  if (!p || !p.active) return bad(res, 'Product not found.', 404);
+  db.addWishlist(req.userId, p.id);
+  res.json({ items: db.getWishlist(req.userId) });
+});
+app.delete('/api/wishlist/:id', requireAuth, (req, res) => {
+  db.removeWishlist(req.userId, String(req.params.id));
+  res.json({ items: db.getWishlist(req.userId) });
+});
+// Sign-in merge: hearts added while signed out are added to the account.
+app.post('/api/wishlist/merge', requireAuth, (req, res) => {
+  const ids = Array.isArray((req.body || {}).items) ? req.body.items.slice(0, 100) : [];
+  for (const id of ids) { const p = typeof id === 'string' && db.getProduct(id); if (p && p.active) db.addWishlist(req.userId, p.id); }
+  res.json({ items: db.getWishlist(req.userId) });
+});
+
+// ---------- Back-in-stock alerts ----------
+app.post('/api/products/:id/notify', optionalAuth, alertLimit, (req, res) => {
+  const p = db.getProduct(String(req.params.id));
+  if (!p || !p.active) return bad(res, 'Product not found.', 404);
+  if (p.stock !== 0) return bad(res, 'This product is in stock — you can order it now.', 409);
+  const user = req.userId ? db.getUserById(req.userId) : null;
+  const to = user ? user.email : v.email((req.body || {}).email);
+  if (!to || !v.isEmail(to)) return bad(res, 'Please enter a valid email.');
+  db.addStockAlert(to, user ? user.id : null, p.id);
+  res.status(201).json({ ok: true, email: to });
+});
+// Called whenever stock goes up: emails everyone waiting if the product was sold out.
+function notifyIfRestocked(before, after) {
+  if (!before || !after || before.stock !== 0 || !(after.stock == null || after.stock > 0) || !after.active) return 0;
+  const alerts = db.takeStockAlerts(after.id);
+  for (const a of alerts) {
+    email.queueBackInStock(a.email, after, `${APP_URL}/#shop`).catch((e) => log.warn('restock email failed', { error: e.message }));
+  }
+  if (alerts.length) log.info('back-in-stock alerts queued', { product: after.id, count: alerts.length });
+  return alerts.length;
+}
+
+// ---------- Skin diary ----------
+app.get('/api/diary', requireAuth, (req, res) => res.json({ entries: db.getDiary(req.userId), tags: v.DIARY_TAGS }));
+app.put('/api/diary/:day', requireAuth, (req, res) => {
+  const { entry, error } = v.diaryEntry({ ...(req.body || {}), day: req.params.day });
+  if (error) return bad(res, error);
+  db.setDiary(req.userId, entry);
+  res.json({ entries: db.getDiary(req.userId) });
+});
+app.delete('/api/diary/:day', requireAuth, (req, res) => {
+  db.deleteDiary(req.userId, String(req.params.day));
+  res.json({ entries: db.getDiary(req.userId) });
+});
+
 // ---------- Orders ----------
 app.post('/api/orders', requireAuth, h(async (req, res) => {
   const body = req.body || {};
@@ -355,14 +445,16 @@ app.post('/api/orders/:no/cancel', requireAuth, (req, res) => {
   const mine = db.getOrder(req.userId, String(req.params.no));
   if (!mine) return bad(res, 'Order not found.', 404);
   if (mine.status !== 'placed') return bad(res, `This order is already ${mine.status} and can’t be cancelled.`, 409);
+  const before = mine.items.map((i) => db.getProduct(i.id));
   const r = db.setOrderStatus(mine.order_no, 'cancelled');
+  if (!r.error) before.forEach((b) => b && notifyIfRestocked(b, db.getProduct(b.id)));
   if (r.error) return bad(res, r.error, r.code);
   email.queueOrderStatus(r.order, req.user).catch(() => {});
   res.json({ order: r.order });
 });
 
 // ---------- Admin (ADMIN_EMAIL only) ----------
-app.get('/api/admin/stats', requireAdmin, (_req, res) => res.json({ stats: { ...db.stats(), email_mode: email.emailMode() } }));
+app.get('/api/admin/stats', requireAdmin, (_req, res) => res.json({ stats: { ...db.stats(), email_mode: email.emailMode(), ai_mode: process.env.GEMINI_API_KEY ? 'gemini' : 'rules' } }));
 
 app.get('/api/admin/products', requireAdmin, (_req, res) => res.json({ products: db.listAllProducts() }));
 
@@ -382,7 +474,9 @@ app.patch('/api/admin/products/:id', requireAdmin, (req, res) => {
   const { value, error } = v.productInput(req.body || {}, { partial: true });
   if (error) return bad(res, error);
   if (value.category) value.category = db.canonicalCategory(value.category);
+  const before = db.getProduct(req.params.id);
   const product = db.updateProduct(req.params.id, value);
+  notifyIfRestocked(before, product);
   log.info('admin: product updated', { id: req.params.id, fields: Object.keys(value), by: req.userId });
   res.json({ product });
 });
@@ -403,8 +497,10 @@ app.patch('/api/admin/orders/:no', requireAdmin, (req, res) => {
   const { status } = req.body || {};
   const tracking = v.text((req.body || {}).tracking_no, 60) || null;
   if (!Object.keys(db.ORDER_TRANSITIONS).includes(status)) return bad(res, 'Unknown status.');
+  const prior = status === 'cancelled' ? (db.getOrderByNo(String(req.params.no)) || { items: [] }).items.map((i) => db.getProduct(i.id)) : [];
   const r = db.setOrderStatus(String(req.params.no), status, tracking);
   if (r.error) return bad(res, r.error, r.code);
+  prior.forEach((b) => b && notifyIfRestocked(b, db.getProduct(b.id)));
   const customer = db.getUserById(r.order.user_id);
   if (customer) email.queueOrderStatus(r.order, customer).catch(() => {});
   log.info('admin: order status changed', { order: r.order.order_no, status, by: req.userId });
@@ -417,6 +513,8 @@ app.post('/api/admin/emails/retry', requireAdmin, h(async (_req, res) => {
   await email.processOutbox();
   res.json({ retried: n });
 }));
+
+app.post('/api/admin/ai-cache/clear', requireAdmin, (_req, res) => res.json({ cleared: db.clearAiCache() }));
 
 app.post('/api/admin/backup', requireAdmin, h(async (_req, res) => {
   const { file, at } = await backup.backupNow('admin page');

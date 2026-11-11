@@ -64,17 +64,24 @@ function facetHTML(fc) {
 
 function cardHTML(p) {
   const flag = (p.safety || []).find((s) => /safe|free/i.test(s));
-  const out = soldOut(p);
+  const out = soldOut(p), saved = isWished(p.id), cmp = state.compare.includes(p.id);
+  const why = state.profile ? whyFor(p.id) : '', skip = state.profile && isSkip(p.id);
   return `<div class="card ${out ? 'is-out' : ''}" data-act="openModal" data-arg="${esc(p.id)}" tabindex="0" role="button" aria-label="${esc(p.name)} — details">
-    <div class="card-img" style="background:${esc(p.bg)}">${productArt(p, 'card')}${flag ? `<span class="card-flag">${esc(flag)}</span>` : ''}${stockBadge(p)}</div>
+    <div class="card-img" style="background:${esc(p.bg)}">${productArt(p, 'card')}${flag ? `<span class="card-flag">${esc(flag)}</span>` : ''}${stockBadge(p)}
+      <button class="heart ${saved ? 'on' : ''}" data-act="toggleWish" data-arg="${esc(p.id)}" aria-pressed="${saved}" aria-label="${saved ? 'Remove from saved' : 'Save for later'}" title="${saved ? 'Remove from saved' : 'Save for later'}">${saved ? '♥' : '♡'}</button></div>
     <div class="card-body">
       <div class="cat">${esc(p.cat)}</div>
       <h3>${esc(p.name)}</h3>
       <div class="benefit">${esc(p.benefit)}</div>
+      ${why ? `<div class="card-why ${skip ? 'skip' : ''}">${skip ? '⚠︎ ' : '✦ '}${esc(why)}</div>` : ''}
       <div class="card-ings">${(p.ings || []).slice(0, 3).map((i) => `<span class="ing-tag">${esc(i)}</span>`).join('')}</div>
       <div class="card-foot">
         <span class="price">${money(p.price)}</span>
-        <button class="btn btn-primary btn-sm" data-act="addToCart" data-arg="${esc(p.id)}" ${out ? 'disabled' : ''}>${out ? 'Sold out' : 'Add'}</button>
+        <span class="card-btns">
+          <button class="cmp-toggle ${cmp ? 'on' : ''}" data-act="toggleCompare" data-arg="${esc(p.id)}" aria-pressed="${cmp}" title="Compare">${cmp ? '✓ Comparing' : '+ Compare'}</button>
+          ${out ? `<button class="btn btn-gold btn-sm" data-act="notifyMe" data-arg="${esc(p.id)}" ${state.alerts.includes(p.id) ? 'disabled' : ''}>${state.alerts.includes(p.id) ? '✓ Notifying' : 'Notify me'}</button>`
+            : `<button class="btn btn-primary btn-sm" data-act="addToCart" data-arg="${esc(p.id)}">Add</button>`}
+        </span>
       </div>
     </div>
   </div>`;
@@ -82,6 +89,9 @@ function cardHTML(p) {
 
 function renderShop() {
   if (state.shop.sort === 'match' && !state.profile) state.shop.sort = 'featured';
+  // With a skin profile, the shop opens sorted by best match (until the shopper picks another sort).
+  if (state.profile && !state.shop.sortChosen) state.shop.sort = 'match';
+  ensureReco();
   const f = state.shop;
   app.innerHTML = `
   <div class="wrap shop">
@@ -100,7 +110,13 @@ function renderShop() {
         </select>
       </label>
     </div>
-    <div id="shopFacets">${FACETS.map(facetHTML).join('')}</div>
+    <button class="btn btn-ghost btn-sm filter-open" data-act="openFilters" aria-controls="facetSheet">Filters<span id="filterN"></span></button>
+    <div class="facet-sheet" id="facetSheet">
+      <div class="fs-head"><b>Filters</b><button class="icon-btn" data-act="closeFilters" aria-label="Close filters">✕</button></div>
+      <div id="shopFacets">${FACETS.map(facetHTML).join('')}</div>
+      <div class="fs-foot"><button class="link-btn" data-act="clearShopFilters">Clear all</button><button class="btn btn-primary btn-sm" data-act="closeFilters" id="fsShow">Show products</button></div>
+    </div>
+    <div id="shopForYou"></div>
     <div id="shopResults"></div>
   </div>
   ${footerHTML()}`;
@@ -113,17 +129,75 @@ function renderShopResults() {
   const active = FACETS.filter((fc) => state.shop[fc.key] !== 'all').length + (state.shop.q ? 1 : 0);
   const facets = $('#shopFacets');
   if (facets) facets.innerHTML = FACETS.map(facetHTML).join('');
+  const fn = $('#filterN'); if (fn) fn.textContent = active ? ` (${active})` : '';
+  const fs = $('#fsShow'); if (fs) fs.textContent = `Show ${list.length} product${list.length === 1 ? '' : 's'}`;
+  const fy = $('#shopForYou'); if (fy) fy.innerHTML = active ? '' : forYouHTML();
   $('#shopResults').innerHTML = `
     <div class="shop-count">${list.length} product${list.length === 1 ? '' : 's'}${active ? ` · <button class="link-btn" data-act="clearShopFilters">Clear filters</button>` : ''}</div>
     ${list.length ? `<div class="grid">${list.map(cardHTML).join('')}</div>`
-      : `<div class="empty-state"><div class="big">🔍</div><p>No products match ${state.shop.q ? `“${esc(state.shop.q)}”` : 'that combination'} yet.</p>
-         <button class="btn btn-ghost btn-sm" style="margin-top:12px" data-act="clearShopFilters">Clear filters</button></div>`}`;
+      : emptyShopHTML()}`;
   enhanceTips($('#shopResults'));
 }
 
 function shopFilter(key, value) { state.shop[key] = value; renderShopResults(); }
 function shopSearch(q) { state.shop.q = q.slice(0, 80); renderShopResults(); }
-function shopSort(v) { if (SORTS[v]) { state.shop.sort = v; renderShopResults(); } }
+function shopSort(v) { if (SORTS[v]) { state.shop.sort = v; state.shop.sortChosen = true; renderShopResults(); } }
+
+// "Picked for you": the AI's add-ons and routine products, shown above the full list when no filter is on.
+function forYouHTML() {
+  if (!state.profile) return '';
+  const r = recoNow();
+  const ids = [...(r ? (r.addons || []).map((a) => a.id) : []), ...routineIds()]
+    .filter((id, i, a) => a.indexOf(id) === i && prod(id) && !soldOut(prod(id))).slice(0, 4);
+  if (!ids.length) return '';
+  return `<div class="for-you"><div class="fy-head"><h3>✦ Picked for your ${esc(DOSHA[state.profile.dosha].name)} · ${esc(SKIN_LABEL[state.profile.skin].toLowerCase())} skin</h3>
+    <button class="link-btn" data-go="results">Your full routine →</button></div>
+    <div class="mini-grid">${ids.map((id) => miniCardHTML(id, whyFor(id))).join('')}</div></div>
+    <div class="shop-all-head">All products</div>`;
+}
+
+// No results: suggest which filter to drop, and the closest products to what was typed.
+function emptyShopHTML() {
+  const f = state.shop;
+  const drops = FACETS.filter((fc) => f[fc.key] !== 'all').map((fc) => {
+    const saved = f[fc.key]; f[fc.key] = 'all'; const n = shopFiltered().length; f[fc.key] = saved;
+    return { fc, n, name: fc.name(saved) };
+  }).filter((d) => d.n > 0);
+  const near = f.q ? closestProducts(f.q, 3) : [];
+  return `<div class="empty-state"><div class="big">🔍</div><p>No products match ${f.q ? `“${esc(f.q)}”` : 'that combination'}${drops.length && f.q ? ' with those filters' : ''}.</p>
+    ${drops.length ? `<div class="drop-filters">${drops.map((d) => `<button class="pill" data-act="shopFilter" data-arg="${d.fc.key}" data-arg2="all">Remove “${esc(d.name)}” → ${d.n} product${d.n === 1 ? '' : 's'}</button>`).join('')}</div>` : ''}
+    <button class="btn btn-ghost btn-sm" style="margin-top:12px" data-act="clearShopFilters">Clear all filters</button></div>
+    ${near.length ? `<div class="shop-all-head">Closest matches</div><div class="grid">${near.map(cardHTML).join('')}</div>` : ''}`;
+}
+// Fuzzy match: shared word starts and small typos (edit distance) between the query and product text.
+function editDistance(a, b) {
+  if (Math.abs(a.length - b.length) > 2) return 9;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  }
+  return d[a.length][b.length];
+}
+function closestProducts(q, n) {
+  const words = q.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 3);
+  if (!words.length) return [];
+  return PRODUCTS.map((p) => {
+    const hay = [p.name, p.cat, p.benefit, ...(p.ings || []), ...(p.concern || [])].join(' ').toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 3);
+    let sc = 0;
+    for (const w of words) {
+      let best = 0;
+      for (const h of hay) {
+        if (h.startsWith(w.slice(0, 4)) || w.startsWith(h.slice(0, 4))) best = Math.max(best, 2);
+        else if (w.length >= 4 && editDistance(w, h) <= (w.length > 6 ? 2 : 1)) best = Math.max(best, 3);
+      }
+      sc += best;
+    }
+    return { p, sc };
+  }).filter((x) => x.sc > 0).sort((a, b) => b.sc - a.sc).slice(0, n).map((x) => x.p);
+}
+function openFilters() { const s = $('#facetSheet'); if (s) { s.classList.add('open'); document.body.classList.add('sheet-open'); } }
+function closeFilters() { const s = $('#facetSheet'); if (s) s.classList.remove('open'); document.body.classList.remove('sheet-open'); }
 function clearShopFilters() {
   state.shop = { ...state.shop, q: '', category: 'all', skin: 'all', dosha: 'all', concern: 'all' };
   const q = $('#shopQ'); if (q) q.value = '';
@@ -135,6 +209,7 @@ async function refreshProducts() {
     const r = await API.products();
     PRODUCTS = r.products; SHIPPING = r.shipping || SHIPPING;
     state.cart = state.cart.filter((c) => prod(c.id));
+    state.wish = state.wish.filter((id) => prod(id));
     updateCartCount(false);
   } catch (e) { /* keep what we have */ }
 }

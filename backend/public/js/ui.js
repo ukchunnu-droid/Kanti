@@ -33,7 +33,7 @@ function go(view){
   if(GATED_VIEWS.includes(view) && !requireSignIn(view)) return;
   if(AUTH_VIEWS.includes(view) && view!=='reset' && API.isAuthed()){ view=state.next||'account'; state.next=null; }
   state.view=view;
-  if(view==='quiz'){state.qStep=0;state.answers=[];state.classifying=false;}
+  if(view==='quiz'){state.qStep=0;state.answers=[];state.classifying=false;state.quizResumed=restoreQuizProgress();}
   if(view!=='account'){state.editProfile=false;state.acctForm=null;}
   try{history.replaceState(null,'',view==='home'?location.pathname:'#'+view);}catch(e){} // also drops reset tokens from the URL
   window.scrollTo({top:0,behavior:'instant'});
@@ -48,10 +48,11 @@ function viewFromHash(){
   if(vm){state.verifyToken=vm[1];return 'verify';}
   const [v,q]=raw.split('?');
   const next=new URLSearchParams(q||'').get('next');
-  if(next&&/^(checkout|account|quiz|shop|admin)$/.test(next)) state.next=next;
+  if(next&&/^(checkout|account|quiz|shop|admin|routine|saved)$/.test(next)) state.next=next;
   if(v==='results') return state.profile?'results':'quiz';
   if(v==='reset') return state.resetToken?'reset':'forgot';
-  return ['home','quiz','shop','checkout','account','admin','privacy','signin','signup','forgot'].includes(v)?v:'home';
+  if(v==='compare') return state.compare.length?'compare':'shop';
+  return ['home','quiz','shop','checkout','account','admin','privacy','signin','signup','forgot','routine','saved'].includes(v)?v:'home';
 }
 
 /* ---------- Cart ---------- */
@@ -100,7 +101,7 @@ function renderDrawer(){
   if(state.cart.length===0){
     body.innerHTML=`<div class="empty-state"><div class="big">🧺</div><p>Your bag is empty.</p>
       <button class="btn btn-ghost btn-sm" style="margin-top:14px" data-go="shop">Browse products</button></div>`;
-    foot.innerHTML='';return;
+    foot.innerHTML=state.profile?bagSuggestionsHTML():'';return;
   }
   body.innerHTML=state.cart.map(c=>{const p=prod(c.id);return `
     <div class="cart-line">
@@ -116,8 +117,11 @@ function renderDrawer(){
       </div>
       <div style="font-weight:700">${money(p.price*c.qty)}</div>
     </div>`;}).join('');
+  const toFree=SHIPPING.free_over_cents-cartTotalCents();
   foot.innerHTML=`
+    ${bagSuggestionsHTML()}
     <div class="subtotal"><span>Subtotal</span><span>${money(cartTotal())}</span></div>
+    ${toFree>=0?`<div class="note">${money((toFree+1)/100)} more for free shipping</div>`:'<div class="note ok">✓ Free shipping</div>'}
     <div class="note">Shipping & taxes calculated at checkout.</div>
     <button class="btn btn-primary btn-block" data-go="checkout">Checkout</button>`;
 }
@@ -125,7 +129,9 @@ function renderDrawer(){
 /* ---------- Product modal ---------- */
 function openModal(id){
   const p=prod(id); if(!p) return;
-  const why = p._why ? `<div class="demo-badge" style="margin:0 0 14px">⭑ Recommended for you — ${p._why}</div>`:'';
+  const w=whyFor(p.id), skip=isSkip(p.id);
+  const why = w ? `<div class="why-badge ${skip?'skip':''}">${skip?'⚠︎ Probably not for you':'✦ For you'} — ${esc(w)}</div>`:'';
+  const inCmp=state.compare.includes(p.id), saved=isWished(p.id);
   $('#modal').innerHTML=`
     <button class="modal-close" data-act="closeModal">✕</button>
     <div class="modal-top">
@@ -144,9 +150,13 @@ function openModal(id){
       ${p.sourcing?`<div class="meta-row"><span class="k">Sourcing</span><span>${esc(p.sourcing)}</span></div>`:''}
       ${(p.safety||[]).length?`<div class="meta-row"><span class="k">Good to know</span><span>${p.safety.map(s=>`<span class="safety-flag">✓ ${esc(s)}</span>`).join('')}</span></div>`:''}
     </div>
+    ${soldOut(p)?notifyFormHTML(p):''}
     <div class="modal-buy">
       <span class="price">${money(p.price)}</span>
-      <button class="btn btn-primary" style="flex:1" data-act="addToCart" data-arg="${esc(p.id)}" ${soldOut(p)?'disabled':''}>${soldOut(p)?'Sold out':'Add to bag'}</button>
+      <button class="icon-btn heart ${saved?'on':''}" data-act="toggleWish" data-arg="${esc(p.id)}" aria-pressed="${saved}" title="${saved?'Remove from saved':'Save for later'}">${saved?'♥':'♡'}</button>
+      <button class="btn btn-ghost btn-sm" data-act="toggleCompare" data-arg="${esc(p.id)}" aria-pressed="${inCmp}">${inCmp?'✓ Comparing':'+ Compare'}</button>
+      ${soldOut(p)?`<button class="btn btn-primary" style="flex:1" disabled>Sold out</button>`
+        :`<button class="btn btn-primary" style="flex:1" data-act="addToCart" data-arg="${esc(p.id)}">Add to bag</button>`}
     </div>`;
   $('#overlay').classList.add('open');
   enhanceTips($('#modal'));
