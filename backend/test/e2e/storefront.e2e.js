@@ -304,7 +304,13 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     await page.type('#guideInput', 'What does neem do?');
     await click('.gp-form button', 'Send');
     await until(() => state.guide.msgs.length === 2 && !state.guide.busy);
-    assert.equal(await count('.gp-msg.user'), 1); assert.equal(await count('.gp-msg.guide'), 1);
+    // Asking for something outside Kanti shows outside listings (a profile is set in this test)
+    await page.type('#guideInput', 'I need a coconut cleanser outside of Kanti');
+    await click('.gp-form button', 'Send');
+    await until(() => state.guide.msgs.length === 4 && !state.guide.busy);
+    assert.ok(await count('.gp-out-item') >= 1, 'outside listings in the chat');
+    await click('.gp-head .link-btn', 'Clear');
+
     await click('.gp-head .icon-btn');
   });
 

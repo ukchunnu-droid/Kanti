@@ -160,7 +160,8 @@ function beyondCardsHTML(d) {
     <article class="beyond-card">
       <span class="beyond-tag">Not sold by Kanti</span>
       <h3>${esc(it.title)}</h3>
-      <p>${esc(it.why)}</p>
+      ${it.fit ? fitBadge(it.fit) : ''}
+      <p>${esc(it.fit_why || it.why)}</p>
       ${(it.ingredients || []).length ? `<div class="chips">${it.ingredients.map((i) => `<span class="chip">${esc(i)}</span>`).join('')}</div>` : ''}
       ${(it.products || []).length ? `<div class="beyond-products"><small>Examples</small>${it.products.map(beyondProductHTML).join('')}</div>` : ''}
       <div class="beyond-search"><small>Search for this at</small>

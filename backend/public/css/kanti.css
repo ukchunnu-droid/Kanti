@@ -929,3 +929,27 @@ body.splashing .hero-eyebrow,body.splashing .hero h1,body.splashing .hero p,body
 .sb-head small{font-size:12px;color:var(--muted)}
 .sb-msg{font-size:14.5px;color:var(--muted);margin:0 0 12px;line-height:1.5}
 .sb-sub{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:16px 0 10px}
+
+/* ===================== Fit verdicts (chat + shop) ===================== */
+:root{--fit-good:#17875A;--fit-caution:#9A6B12;--fit-avoid:#B4492A}
+:root[data-theme="dark"]{--fit-good:#5CC496;--fit-caution:#E0B45A;--fit-avoid:#E48A6C}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--fit-good:#5CC496;--fit-caution:#E0B45A;--fit-avoid:#E48A6C}}
+.fit-badge{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;border:1.5px solid currentColor;white-space:nowrap}
+.fit-badge.good{color:var(--fit-good)}.fit-badge.caution{color:var(--fit-caution)}.fit-badge.avoid{color:var(--fit-avoid)}
+.beyond-card .fit-badge{align-self:flex-start}
+.gp-verdict{border-left:3px solid var(--fit-good);background:var(--surface-2);border-radius:8px;padding:9px 11px;margin-top:6px}
+.gp-verdict.caution{border-left-color:var(--fit-caution)}.gp-verdict.avoid{border-left-color:var(--fit-avoid)}
+.gp-verdict p{margin:6px 0 0 !important;padding:0 !important;background:none !important;font-size:13px;line-height:1.5}
+.sb-verdict{margin:0 0 12px}
+.gp-quiz{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:8px}
+.gp-quiz small{font-size:12px;color:var(--muted)}
+.gp-outside{display:grid;gap:8px;margin-top:6px}
+.gp-out-item{border:1px solid var(--line);border-radius:12px;padding:9px 11px;font-size:13px}
+.gp-out-item p{margin:4px 0 6px !important;padding:0 !important;background:none !important;color:var(--muted);font-size:12.5px;line-height:1.45}
+.goi-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.goi-head b{font-size:13.5px}
+.goi-prod{font-size:12.5px;margin-top:3px}
+.goi-prod a,.goi-search a{color:var(--green);font-weight:600;text-decoration:none}
+.goi-prod a:hover,.goi-search a:hover{text-decoration:underline}
+.goi-search{font-size:12px;color:var(--muted);margin-top:5px}
+.gp-out-note{font-size:11px;color:var(--muted)}

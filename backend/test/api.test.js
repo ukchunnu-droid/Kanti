@@ -748,3 +748,21 @@ test('shop search beyond Kanti: search links for what was typed; short queries r
   assert.equal((await c('POST', '/api/search/beyond', { q: 'x' })).status, 400);
   assert.equal((await c('POST', '/api/search/beyond', {})).status, 400);
 });
+
+test('Ask Kanti: outside-Kanti requests need the quiz first, then show outside listings', async () => {
+  const c = client();
+  const ask = (profile) => c('POST', '/api/guide', { messages: [{ role: 'user', text: 'I need a coconut cleanser outside of Kanti' }], profile });
+  const noQuiz = await ask(null);
+  assert.equal(noQuiz.status, 200);
+  assert.equal(noQuiz.data.needs_quiz, true);
+  assert.match(noQuiz.data.reply, /quiz/i);
+  assert.equal(noQuiz.data.outside, undefined, 'no suggestions before the quiz');
+  const withQuiz = await ask({ skin: 'dry', dosha: 'vata' });
+  assert.ok(!withQuiz.data.needs_quiz);
+  const o = withQuiz.data.outside;
+  assert.match(o.items[0].query, /coconut cleanser/);
+  assert.ok(o.items[0].search.every((s) => s.url.startsWith('https://')));
+  assert.match(o.note, /Not sold or reviewed by Kanti/);
+  const normal = await c('POST', '/api/guide', { messages: [{ role: 'user', text: 'what does neem do?' }] });
+  assert.equal(normal.data.needs_quiz, undefined, 'ordinary questions never need the quiz');
+});

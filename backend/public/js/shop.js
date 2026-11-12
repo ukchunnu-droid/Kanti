@@ -185,6 +185,8 @@ function shopBeyondResultHTML(d) {
   return `<div class="shop-beyond">
     <div class="sb-head"><h3>✦ Beyond Kanti: “${esc(d.query)}”</h3>${d.source === 'gemini' ? '<small>Kanti AI</small>' : ''}</div>
     ${d.message ? `<p class="sb-msg">${esc(d.message)}</p>` : ''}
+    ${d.verdict ? `<div class="gp-verdict ${esc(d.verdict.fit)} sb-verdict">${fitBadge(d.verdict.fit)}<p>${esc(d.verdict.why)}</p></div>`
+      : (!state.profile && (d.items || []).length ? '<p class="sb-msg"><button class="link-btn" data-go="quiz">Take the quiz</button> to see which of these suit your skin.</p>' : '')}
     ${kanti.length ? `<div class="sb-sub">Closest in Kanti</div><div class="mini-grid">${kanti.map((k) => miniCardHTML(k.id, k.why)).join('')}</div>` : ''}
     ${(d.items || []).length ? `<div class="sb-sub">From other shops</div>${beyondCardsHTML(d)}` : ''}
   </div>`;

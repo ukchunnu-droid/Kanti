@@ -92,6 +92,7 @@ Live in `backend/` (not ported to the prototype). Tests: 44 API + 12 e2e checks.
 | A15 | Before/after skin illustration (8-week timeline, drag to compare, skin tones) + comparison chart | ✅ |
 | A16 | "Why this routine works": fixed scientific + Ayurvedic reasons per step (`src/skin-science.js`) | ✅ |
 | A17 | Shop search falls back to “Beyond Kanti” (AI: closest Kanti products + outside links, options 1+2) | ✅ |
+| A18 | Ask Kanti finds products outside Kanti with a fit verdict for your skin + dosha; asks for the quiz first if no profile | ✅ |
 
 ## Priority next
 
