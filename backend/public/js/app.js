@@ -22,7 +22,7 @@ const ACTIONS = {
   changeQty: (id, d) => changeQty(id, Number(d)),
   restartQuiz, retryBeyond, addFromBag, simPlay, simSlide, simTone,
   // shop, saved, compare, alerts
-  shopFilter, shopSearch, shopSort, clearShopFilters, openFilters, closeFilters,
+  shopFilter, shopSearch, shopSort, clearShopFilters, openFilters, closeFilters, shopBeyondSearch, shopBeyondRetry,
   toggleWish, moveWishToBag, compareWish, toggleCompare, clearCompare, notifyMe, notifySubmit: (id) => notifySubmit(id),
   // routine page, diary, reminders
   setReminder, downloadReminders, diaryRate, diaryTag, diaryNote, diarySave, diarySignIn,

@@ -132,12 +132,64 @@ function renderShopResults() {
   const fn = $('#filterN'); if (fn) fn.textContent = active ? ` (${active})` : '';
   const fs = $('#fsShow'); if (fs) fs.textContent = `Show ${list.length} product${list.length === 1 ? '' : 's'}`;
   const fy = $('#shopForYou'); if (fy) fy.innerHTML = active ? '' : forYouHTML();
-  $('#shopResults').innerHTML = `
+  const box = $('#shopResults');
+  box.innerHTML = `
     <div class="shop-count">${list.length} product${list.length === 1 ? '' : 's'}${active ? ` · <button class="link-btn" data-act="clearShopFilters">Clear filters</button>` : ''}</div>
     ${list.length ? `<div class="grid">${list.map(cardHTML).join('')}</div>`
-      : emptyShopHTML()}`;
-  enhanceTips($('#shopResults'));
+      : emptyShopHTML()}
+    <div id="shopBeyond">${shopBeyondHTML()}</div>`;
+  enhanceTips(box);
 }
+
+/* ---------- Search beyond Kanti ----------
+   Searching for something Kanti doesn't carry → Kanti AI looks outside (POST /api/search/beyond):
+   the closest Kanti alternatives, plus outside products with retailer search links and checked
+   product pages. Runs by itself when nothing matches (after typing pauses); otherwise on request. */
+const shopAi = { cache: new Map(), pending: new Map(), timer: null };
+const aiQ = () => state.shop.q.trim().replace(/\s+/g, ' ').toLowerCase();
+function shopBeyondHTML() {
+  const q = aiQ();
+  if (q.length < 3) return '';
+  if (shopAi.cache.has(q)) return shopBeyondResultHTML(shopAi.cache.get(q));
+  const anyMatch = PRODUCTS.some((p) => matchesSearch(p, q));
+  if (shopAi.pending.has(q) || !anyMatch) {
+    if (!anyMatch) scheduleShopBeyond(q);
+    return `<div class="shop-beyond"><div class="sb-head"><h3>✦ Searching beyond Kanti for “${esc(state.shop.q.trim())}”…</h3></div>
+      <div class="beyond-grid">${[0, 1, 2].map(() => '<div class="beyond-card skeleton"><span></span><span></span><span></span></div>').join('')}</div></div>`;
+  }
+  return `<div class="shop-beyond ask"><span>Not quite what you want?</span>
+    <button class="btn btn-ghost btn-sm" data-act="shopBeyondSearch">✦ Search beyond Kanti for “${esc(state.shop.q.trim())}”</button></div>`;
+}
+function scheduleShopBeyond(q) {
+  clearTimeout(shopAi.timer);
+  shopAi.timer = setTimeout(() => runShopBeyond(q), 700); // wait until typing pauses
+}
+function shopBeyondSearch() { runShopBeyond(aiQ()); }
+function runShopBeyond(q) {
+  if (q.length < 3 || shopAi.cache.has(q) || shopAi.pending.has(q)) return;
+  const req = API.searchBeyond(q, state.profile ? recoProfile(state.profile) : null)
+    .then((d) => shopAi.cache.set(q, d))
+    .catch((e) => shopAi.cache.set(q, { error: e.status === 429 ? 'You’ve searched a lot — please try again in a little while.' : 'Couldn’t search beyond Kanti right now.' }))
+    .finally(() => {
+      shopAi.pending.delete(q);
+      const box = $('#shopBeyond'); // only repaint this part, so typing keeps focus
+      if (box && aiQ() === q) { box.innerHTML = shopBeyondHTML(); enhanceTips(box); }
+    });
+  shopAi.pending.set(q, req);
+  const box = $('#shopBeyond'); if (box && aiQ() === q) box.innerHTML = shopBeyondHTML();
+}
+function shopBeyondResultHTML(d) {
+  if (d.error) return `<div class="shop-beyond"><p class="muted-p">${esc(d.error)} <button class="link-btn" data-act="shopBeyondRetry">Try again</button></p></div>`;
+  if (d.off_topic) return `<div class="shop-beyond"><div class="sb-head"><h3>✦ Beyond Kanti</h3></div><p class="sb-msg">${esc(d.message)}</p></div>`;
+  const kanti = (d.kanti || []).filter((k) => prod(k.id));
+  return `<div class="shop-beyond">
+    <div class="sb-head"><h3>✦ Beyond Kanti: “${esc(d.query)}”</h3>${d.source === 'gemini' ? '<small>Kanti AI</small>' : ''}</div>
+    ${d.message ? `<p class="sb-msg">${esc(d.message)}</p>` : ''}
+    ${kanti.length ? `<div class="sb-sub">Closest in Kanti</div><div class="mini-grid">${kanti.map((k) => miniCardHTML(k.id, k.why)).join('')}</div>` : ''}
+    ${(d.items || []).length ? `<div class="sb-sub">From other shops</div>${beyondCardsHTML(d)}` : ''}
+  </div>`;
+}
+function shopBeyondRetry() { shopAi.cache.delete(aiQ()); runShopBeyond(aiQ()); }
 
 function shopFilter(key, value) { state.shop[key] = value; renderShopResults(); }
 function shopSearch(q) { state.shop.q = q.slice(0, 80); renderShopResults(); }

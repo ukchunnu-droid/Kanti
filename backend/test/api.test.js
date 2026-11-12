@@ -736,3 +736,15 @@ test('every catalogue ingredient has a written scientific and Ayurvedic explanat
   }
   assert.deepEqual(missing.filter((m) => !/Restock Test Balm|Saffron Glow/.test(m)), []);
 });
+
+test('shop search beyond Kanti: search links for what was typed; short queries rejected', async () => {
+  const c = client();
+  const r = await c('POST', '/api/search/beyond', { q: 'lip balm' });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.off_topic, false);
+  assert.match(r.data.message, /lip balm/);
+  assert.ok(r.data.items[0].search.every((s) => /^https:\/\/www\.(nykaa|amazon|sephora|ulta)\.com\/.*lip%20balm$/.test(s.url)));
+  assert.match(r.data.note, /Not sold or reviewed by Kanti/);
+  assert.equal((await c('POST', '/api/search/beyond', { q: 'x' })).status, 400);
+  assert.equal((await c('POST', '/api/search/beyond', {})).status, 400);
+});

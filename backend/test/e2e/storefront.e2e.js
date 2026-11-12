@@ -90,6 +90,11 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     const names = await page.$$eval('.grid .card h3', (els) => els.map((e) => e.textContent));
     assert.ok(names.length > 0 && names.every((n) => /neem/i.test(n) || true));
     assert.equal(await page.evaluate(() => document.activeElement.id), 'shopQ', 'search keeps focus while typing');
+    // Something Kanti doesn't sell → searches beyond Kanti by itself, with working outside links.
+    await page.evaluate(() => { const i = document.getElementById('shopQ'); i.value = 'lip balm'; shopSearch('lip balm'); });
+    await page.waitForSelector('.shop-beyond .beyond-card:not(.skeleton)', { timeout: 8000 });
+    const sb = await page.$$eval('.shop-beyond .beyond-search a', (as) => as.map((a) => a.href));
+    assert.ok(sb.length >= 2 && sb.every((h) => h.startsWith('https://')));
     await click('.link-btn', 'Clear filters');
     await shot('1-shop');
     await click('#shopFacets .pill', 'Serum');

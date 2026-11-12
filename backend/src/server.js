@@ -332,6 +332,12 @@ app.post('/api/recommend/beyond', optionalAuth, aiLimit, h(async (req, res) => {
   if (r.error) return bad(res, r.error);
   res.json(r);
 }));
+app.post('/api/search/beyond', optionalAuth, aiLimit, h(async (req, res) => {
+  const body = req.body || {};
+  const r = await reco.searchBeyond(body.q, body.profile);
+  if (r.error) return bad(res, r.error);
+  res.json(r);
+}));
 app.post('/api/guide', optionalAuth, guideLimit, h(async (req, res) => {
   const body = req.body || {};
   const r = await reco.guide(body.messages, body.profile);

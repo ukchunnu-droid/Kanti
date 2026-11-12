@@ -53,6 +53,7 @@ const API = {
   // AI recommendations + chat
   recommend(profile) { return this.req('/api/recommend', 'POST', { profile }); },
   beyond(profile) { return this.req('/api/recommend/beyond', 'POST', { profile }); },
+  searchBeyond(q, profile) { return this.req('/api/search/beyond', 'POST', { q, profile }); },
   guide(messages, profile) { return this.req('/api/guide', 'POST', { messages, profile }); },
 
   // wishlist, stock alerts, skin diary

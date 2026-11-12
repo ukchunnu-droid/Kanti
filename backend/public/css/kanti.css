@@ -920,3 +920,12 @@ body.splashing .hero-eyebrow,body.splashing .hero h1,body.splashing .hero p,body
   .db-row{grid-template-columns:1fr 62px;gap:4px 10px}
   .db-label{grid-column:1/-1}
 }
+
+/* ===================== Shop: search beyond Kanti ===================== */
+.shop-beyond{margin-top:26px;padding:20px;border-radius:var(--radius);background:var(--surface);border:1px dashed var(--line)}
+.shop-beyond.ask{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px;font-size:14px;color:var(--muted)}
+.sb-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}
+.sb-head h3{font-size:18px;margin:0}
+.sb-head small{font-size:12px;color:var(--muted)}
+.sb-msg{font-size:14.5px;color:var(--muted);margin:0 0 12px;line-height:1.5}
+.sb-sub{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:16px 0 10px}

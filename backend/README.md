@@ -138,6 +138,8 @@ POST   /api/recommend         { profile:{skin,dosha,concern,lookFor,avoid} }
            science:{ metrics:[{key,label,before,after,helped_by,why}], focus, principle, skin_science, steps:{id:{science,ayurveda}}, note } }
 POST   /api/recommend/beyond  { profile } → { items:[{title, why, ingredients, search:[{retailer,url}],
        products:[{name, kind:'page'|'search', url|links}]}], note, grounded, source }
+POST   /api/search/beyond     { q, profile? } → { query, off_topic, message, kanti:[{id,why}], items:[…as beyond], note }
+       (shop search for something Kanti doesn't carry: closest Kanti products + outside options; non-skincare politely declined)
 POST   /api/guide             { messages:[{role:'user'|'guide', text}], profile } → { reply, products, followups }
 
 GET    /api/wishlist | PUT/DELETE /api/wishlist/:id | POST /api/wishlist/merge { items }

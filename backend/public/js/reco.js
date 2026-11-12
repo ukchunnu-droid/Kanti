@@ -151,7 +151,11 @@ function beyondInnerHTML() {
   if (b.error || !b.data || !(b.data.items || []).length) {
     return `<p class="muted-p">Couldn’t load outside suggestions right now. <button class="link-btn" data-act="retryBeyond">Try again</button></p>`;
   }
-  const d = b.data;
+  return beyondCardsHTML(b.data);
+}
+// Outside-product cards (used by the results page and the shop search).
+function beyondCardsHTML(d) {
+  if (!d || !(d.items || []).length) return '';
   return `<div class="beyond-grid">${d.items.map((it) => `
     <article class="beyond-card">
       <span class="beyond-tag">Not sold by Kanti</span>
