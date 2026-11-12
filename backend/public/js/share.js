@@ -66,7 +66,7 @@ function copyShareText(){
 function footerHTML(){
   return `<footer><div class="wrap">
     <div class="brand"><svg class="brand-mark" aria-hidden="true"><use href="#kanti-mark"/></svg>Kan<span style="color:var(--gold)">ti</span></div>
-    <small>Ayurvedic skincare that fits your nature · Student project · <button class="link-btn footer-link" data-go="contact">${t('Contact us')}</button> · <button class="link-btn footer-link" data-go="privacy">Privacy</button><span class="footer-theme"> · <button class="link-btn footer-link" data-act="toggleTheme">Light / dark</button></span></small>
+    <small>Ayurvedic skincare that fits your nature · Student project · <button class="link-btn footer-link" data-go="about">${t('Our story')}</button> · <button class="link-btn footer-link" data-go="contact">${t('Contact us')}</button> · <button class="link-btn footer-link" data-go="privacy">Privacy</button><span class="footer-theme"> · <button class="link-btn footer-link" data-act="toggleTheme">Light / dark</button></span></small>
   </div></footer>`;
 }
 

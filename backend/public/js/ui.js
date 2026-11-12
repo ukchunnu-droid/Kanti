@@ -61,7 +61,7 @@ function viewFromHash(){
   if(v==='results') return state.profile?'results':'quiz';
   if(v==='reset') return state.resetToken?'reset':'forgot';
   if(v==='compare') return state.compare.length?'compare':'shop';
-  return ['home','quiz','shop','checkout','account','admin','privacy','signin','signup','forgot','routine','saved','journey','contact'].includes(v)?v:'home';
+  return ['home','quiz','shop','checkout','account','admin','privacy','signin','signup','forgot','routine','saved','journey','contact','about'].includes(v)?v:'home';
 }
 
 /* ---------- Cart ---------- */

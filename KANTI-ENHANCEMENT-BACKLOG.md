@@ -107,6 +107,7 @@ Live in `backend/` (not ported to the prototype). Tests: 44 API + 12 e2e checks.
 | C12 | Profile photo; preferences: language (English/हिन्दी, site chrome) and °C/°F | ✅ |
 | C13 | Analytics dashboard: funnel, top searches, wanted-but-not-sold | ✅ |
 | C14 | Support inbox: contact form, tickets tied to orders, email replies, guest private links | ✅ |
+| C15 | “Our story” founder page (/#about) + “Meet the founder” on the home page | ✅ |
 
 ## Priority next
 

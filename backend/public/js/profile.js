@@ -37,7 +37,7 @@ const HI = {
   'New': 'नया', 'Preferences': 'पसंद', 'Language': 'भाषा', 'Temperature': 'तापमान', 'Save': 'सहेजें',
   'Addresses': 'पते', 'Email preferences': 'ईमेल पसंद', 'Devices & sessions': 'डिवाइस और सत्र', 'Reviews': 'समीक्षाएँ',
   'Help & support': 'मदद और सहायता', 'Contact us': 'संपर्क करें', 'Skin journey': 'त्वचा की यात्रा', 'Notifications': 'सूचनाएँ',
-  'Skincare that fits': 'स्किनकेयर जो मेल खाए', 'your nature.': 'आपकी प्रकृति से।', 'Browse products': 'उत्पाद देखें',
+  'Skincare that fits': 'स्किनकेयर जो मेल खाए', 'Our story': 'हमारी कहानी', 'your nature.': 'आपकी प्रकृति से।', 'Browse products': 'उत्पाद देखें',
 };
 function t(s) { return lang() === 'hi' && HI[s] ? HI[s] : s; }
 // Elements in index.html marked data-i18n="Text" are translated in place.

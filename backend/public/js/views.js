@@ -176,6 +176,7 @@ function render(){
   else if(state.view==='saved')renderSaved();
   else if(state.view==='compare')renderCompare();
   else if(state.view==='journey')renderJourney();
+  else if(state.view==='about')renderAbout();
   else if(state.view==='contact')renderContact();
   else if(state.view==='ticket')renderTicket();
   else if(AUTH_VIEWS.includes(state.view))renderAuth(state.view);
@@ -249,6 +250,7 @@ function renderHome(){
          <div class="grid">${PRODUCTS.slice(0,3).map(cardHTML).join('')}</div>`}
   </section>
   ${recentHTML()}
+  ${founderTeaserHTML()}
 
 
   ${footerHTML()}`;
