@@ -11,8 +11,11 @@ const express = require('express');
 
 const db = require('./db');
 const {
-  hashPassword, verifyPassword, setSession, clearSession, requireAuth, optionalAuth, requireAdmin,
+  hashPassword, verifyPassword, setSession, reissueSession, clearSession, endSession, requireAuth, optionalAuth, requireAdmin,
 } = require('./auth');
+const store = require('./store');
+const live = require('./live');
+const notify = require('./notify');
 const email = require('./email');
 const backup = require('./backup');
 const log = require('./log');
@@ -85,7 +88,9 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '50kb' }));
+// Small JSON bodies everywhere, except the profile photo upload (already resized in the browser).
+const jsonSmall = express.json({ limit: '50kb' }), jsonPhoto = express.json({ limit: '400kb' });
+app.use((req, res, next) => (req.path === '/api/me/avatar' ? jsonPhoto : jsonSmall)(req, res, next));
 
 // Old standalone pages now live inside the storefront.
 const MOVED = { '/signin.html': '/#signin', '/signup.html': '/#signup', '/account.html': '/#account', '/quiz.html': '/#quiz' };
@@ -132,6 +137,11 @@ const DUMMY_HASH = require('bcryptjs').hashSync('not-a-real-password', 10);
 const mePayload = (userId) => ({ user: db.publicUser(db.getUserById(userId)), skin: db.latestQuiz(userId) });
 
 const sha256 = (t) => crypto.createHash('sha256').update(t).digest('hex');
+// The browser tab that made a change (so live updates skip it).
+const tabOf = (req) => String(req.get('x-kanti-tab') || '').slice(0, 40);
+function endOtherSessions(userId, keepSid, reason) {
+  for (const s of store.sessions.listActive(userId)) if (s.id !== keepSid) endSession(s.id, reason);
+}
 
 // Emails a 48-hour link that confirms the account's email address.
 function sendVerification(user) {
@@ -163,7 +173,7 @@ app.post('/api/auth/signup', signupLimit, h(async (req, res) => {
   if (db.getUserByEmail(emailAddr)) return bad(res, 'An account with that email already exists. Try signing in.', 409);
 
   const user = db.createUser(nameVal, emailAddr, await hashPassword(password));
-  setSession(res, user);
+  setSession(res, user, req, { remember: !!(req.body || {}).remember });
   sendVerification(user).catch((e) => log.warn('verification email failed', { error: e.message }));
   res.status(201).json(mePayload(user.id));
 }));
@@ -175,12 +185,12 @@ app.post('/api/auth/login', loginLimit, h(async (req, res) => {
   // Always run bcrypt so response time doesn't reveal whether the email exists.
   const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_HASH);
   if (!user || !ok) return bad(res, 'Email or password is incorrect.', 401);
-  setSession(res, user);
+  setSession(res, user, req, { remember: !!(req.body || {}).remember });
   res.json(mePayload(user.id));
 }));
 
-app.post('/api/auth/logout', (_req, res) => {
-  clearSession(res);
+app.post('/api/auth/logout', optionalAuth, (req, res) => {
+  clearSession(res, req);
   res.json({ ok: true });
 });
 
@@ -220,7 +230,8 @@ app.post('/api/auth/reset', resetLimit, h(async (req, res) => {
   const userId = db.consumePasswordReset(sha256(token));
   if (!userId) return bad(res, 'This reset link has expired or was already used. Please request a new one.');
   db.setPassword(userId, await hashPassword(password)); // also signs out every other session
-  setSession(res, db.getUserById(userId));
+  endOtherSessions(userId, null, 'password reset');
+  setSession(res, db.getUserById(userId), req, {});
   res.json(mePayload(userId));
 }));
 
@@ -246,7 +257,8 @@ app.post('/api/me/password', requireAuth, h(async (req, res) => {
   const pwErr = v.passwordError(next);
   if (pwErr) return bad(res, pwErr);
   db.setPassword(req.userId, await hashPassword(next)); // bumps token_version → other devices signed out
-  setSession(res, db.getUserById(req.userId)); // …but keep this one signed in
+  endOtherSessions(req.userId, req.sessionId, 'password changed');
+  reissueSession(res, req, db.getUserById(req.userId)); // …but keep this one signed in
   res.json({ ok: true });
 }));
 
@@ -261,14 +273,15 @@ app.delete('/api/me', requireAuth, h(async (req, res) => {
   if (!(await verifyPassword(String((req.body || {}).password || ''), req.user.password_hash))) {
     return bad(res, 'Your password is incorrect.', 403);
   }
-  db.deleteUser(req.userId); // cascades: orders, items, quiz history, bag, routine, resets
-  clearSession(res);
+  endOtherSessions(req.userId, req.sessionId, 'account deleted');
+  clearSession(res, req);
+  db.deleteUser(req.userId); // cascades: orders, items, quiz history, bag, routine, resets, sessions…
   res.json({ ok: true });
 }));
 
 // ---------- Catalogue ----------
 app.get('/api/products', (_req, res) => {
-  res.json({ products: db.listProducts(), shipping: db.SHIPPING });
+  res.json({ products: db.listProducts(), shipping: db.SHIPPING, ratings: store.reviews.allSummaries(), popular: store.popularity() });
 });
 
 // ---------- Saved bag ----------
@@ -278,6 +291,7 @@ app.put('/api/cart', requireAuth, (req, res) => {
   const { items, error } = v.cartItems((req.body || {}).items, db.getProduct);
   if (error) return bad(res, error);
   res.json({ items: db.replaceCart(req.userId, items) });
+  live.toUser(req.userId, 'cart', {}, tabOf(req));
 });
 
 // Sign-in merge: the bag from before signing in + the saved bag (larger quantity wins per product).
@@ -287,6 +301,7 @@ app.post('/api/cart/merge', requireAuth, (req, res) => {
   const merged = new Map(db.getCart(req.userId).map((i) => [i.id, i.qty]));
   for (const i of items) merged.set(i.id, Math.max(merged.get(i.id) || 0, i.qty));
   res.json({ items: db.replaceCart(req.userId, [...merged].map(([id, qty]) => ({ id, qty }))) });
+  live.toUser(req.userId, 'cart', {}, tabOf(req));
 });
 
 // ---------- Quiz ----------
@@ -313,6 +328,7 @@ app.put('/api/routine', requireAuth, (req, res) => {
   if (error) return bad(res, error);
   db.setRoutine(req.userId, routine);
   res.json({ routine });
+  live.toUser(req.userId, 'routine', {}, tabOf(req));
 });
 
 // ---------- Recommendations (AI routine, Beyond Kanti, Ask Kanti) ----------
@@ -336,6 +352,8 @@ app.post('/api/search/beyond', optionalAuth, aiLimit, h(async (req, res) => {
   const body = req.body || {};
   const r = await reco.searchBeyond(body.q, body.profile);
   if (r.error) return bad(res, r.error);
+  store.events.add('beyond_search', { anonId: v.text(body.anon_id, 40) || null, userId: req.userId,
+    props: { q: r.query, off_topic: r.off_topic ? 1 : 0, top: (r.items || []).map((i) => i.title).slice(0, 2).join(' / ') || null, kanti: (r.kanti || []).length } });
   res.json(r);
 }));
 app.post('/api/guide', optionalAuth, guideLimit, h(async (req, res) => {
@@ -352,10 +370,12 @@ app.put('/api/wishlist/:id', requireAuth, (req, res) => {
   if (!p || !p.active) return bad(res, 'Product not found.', 404);
   db.addWishlist(req.userId, p.id);
   res.json({ items: db.getWishlist(req.userId) });
+  live.toUser(req.userId, 'wishlist', {}, tabOf(req));
 });
 app.delete('/api/wishlist/:id', requireAuth, (req, res) => {
   db.removeWishlist(req.userId, String(req.params.id));
   res.json({ items: db.getWishlist(req.userId) });
+  live.toUser(req.userId, 'wishlist', {}, tabOf(req));
 });
 // Sign-in merge: hearts added while signed out are added to the account.
 app.post('/api/wishlist/merge', requireAuth, (req, res) => {
@@ -380,6 +400,7 @@ function notifyIfRestocked(before, after) {
   if (!before || !after || before.stock !== 0 || !(after.stock == null || after.stock > 0) || !after.active) return 0;
   const alerts = db.takeStockAlerts(after.id);
   for (const a of alerts) {
+    if (a.user_id) notify.notify(a.user_id, { kind: 'restock', title: `${after.name} is back in stock`, body: 'You asked us to let you know. Stock is limited.', link: '/#shop' });
     email.queueBackInStock(a.email, after, `${APP_URL}/#shop`).catch((e) => log.warn('restock email failed', { error: e.message }));
   }
   if (alerts.length) log.info('back-in-stock alerts queued', { product: after.id, count: alerts.length });
@@ -393,6 +414,7 @@ app.put('/api/diary/:day', requireAuth, (req, res) => {
   if (error) return bad(res, error);
   db.setDiary(req.userId, entry);
   res.json({ entries: db.getDiary(req.userId) });
+  live.toUser(req.userId, 'diary', {}, tabOf(req));
 });
 app.delete('/api/diary/:day', requireAuth, (req, res) => {
   db.deleteDiary(req.userId, String(req.params.day));
@@ -430,9 +452,14 @@ app.post('/api/orders', requireAuth, h(async (req, res) => {
   if (body.save_details !== false) {
     const { name, phone, address, address2, city, state, zip, country } = ship.value;
     db.updateProfile(req.userId, { name, phone, address, address2, city, state, zip, country });
+    store.addresses.remember(req.userId, { name, phone, address, address2, city, state, zip, country });
   }
 
   // Saved to the outbox first, so it's retried if sending fails; waits up to 8s for the preview link.
+  store.events.add('order_placed', { anonId: v.text(body.anon_id, 40) || null, userId: req.userId, props: { total: order.total, items: lines.length } });
+  live.toUser(req.userId, 'orders', {}, tabOf(req));
+  live.toUser(req.userId, 'cart', {}, tabOf(req));
+  live.toAll('products', {});
   const sent = await email.queueOrderConfirmation(order, req.user);
   order.email_preview_url = sent.previewUrl || null;
   res.status(201).json({ order, email: { previewUrl: sent.previewUrl || null, sent: !!sent.ok, queued: true } });
@@ -456,6 +483,8 @@ app.post('/api/orders/:no/cancel', requireAuth, (req, res) => {
   if (!r.error) before.forEach((b) => b && notifyIfRestocked(b, db.getProduct(b.id)));
   if (r.error) return bad(res, r.error, r.code);
   email.queueOrderStatus(r.order, req.user).catch(() => {});
+  live.toUser(req.userId, 'orders', {}, tabOf(req));
+  live.toAll('products', {});
   res.json({ order: r.order });
 });
 
@@ -471,6 +500,7 @@ app.post('/api/admin/products', requireAdmin, (req, res) => {
   let id = v.slugify(value.name);
   for (let i = 2; db.productIdExists(id); i++) id = `${v.slugify(value.name).slice(0, 36)}-${i}`;
   const product = db.createProduct({ ...value, id });
+  live.toAll('products', {});
   log.info('admin: product created', { id, by: req.userId });
   res.status(201).json({ product });
 });
@@ -483,6 +513,7 @@ app.patch('/api/admin/products/:id', requireAdmin, (req, res) => {
   const before = db.getProduct(req.params.id);
   const product = db.updateProduct(req.params.id, value);
   notifyIfRestocked(before, product);
+  live.toAll('products', {});
   log.info('admin: product updated', { id: req.params.id, fields: Object.keys(value), by: req.userId });
   res.json({ product });
 });
@@ -508,7 +539,16 @@ app.patch('/api/admin/orders/:no', requireAdmin, (req, res) => {
   if (r.error) return bad(res, r.error, r.code);
   prior.forEach((b) => b && notifyIfRestocked(b, db.getProduct(b.id)));
   const customer = db.getUserById(r.order.user_id);
-  if (customer) email.queueOrderStatus(r.order, customer).catch(() => {});
+  if (customer) {
+    email.queueOrderStatus(r.order, customer).catch(() => {});
+    const msg = { shipped: ['📦 Your order has shipped', r.order.tracking_no ? `Tracking: ${r.order.tracking_no}` : 'It’s on its way.'],
+      delivered: ['🌿 Your order was delivered', 'Enjoy! Tell us how it works for you with a quick review.'],
+      cancelled: ['Your order was cancelled', 'Any stock has been returned. Questions? Contact support.'] }[status];
+    if (msg) notify.notify(customer.id, { kind: 'order', title: `${msg[0]} · ${r.order.order_no}`, body: msg[1], link: '/#account' });
+    if (status === 'delivered') email.queueReviewRequest(customer.email, customer.name, r.order.items).catch(() => {});
+    live.toUser(customer.id, 'orders', {});
+  }
+  if (status === 'cancelled') live.toAll('products', {});
   log.info('admin: order status changed', { order: r.order.order_no, status, by: req.userId });
   res.json({ order: r.order });
 });
@@ -526,6 +566,8 @@ app.post('/api/admin/backup', requireAdmin, h(async (_req, res) => {
   const { file, at } = await backup.backupNow('admin page');
   res.json({ file: path.basename(file), at });
 }));
+
+require('./routes-extra')(app, { h, bad, tabOf, APP_URL, sha256, endSession, rateLimit, ip });
 
 // ---------- Errors ----------
 app.use('/api', (_req, res) => bad(res, 'Not found.', 404));
@@ -555,6 +597,7 @@ if (require.main === module) {
   });
   email.startWorker();
   backup.scheduleBackups();
+  notify.startScheduler();
   const em = email.emailMode();
   if (!em.delivers) log.warn('EMAILS ARE NOT BEING DELIVERED — ' + em.problem);
 
@@ -565,6 +608,7 @@ if (require.main === module) {
     stopping = true;
     log.info(`${signal} received — shutting down`);
     email.stopWorker();
+    notify.stopScheduler();
     server.close(() => { db.raw.close(); log.info('stopped cleanly'); process.exit(0); });
     setTimeout(() => { log.warn('forced exit after 10s'); process.exit(1); }, 10000).unref();
   };

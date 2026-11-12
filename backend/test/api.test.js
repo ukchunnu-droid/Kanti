@@ -766,3 +766,274 @@ test('Ask Kanti: outside-Kanti requests need the quiz first, then show outside l
   const normal = await c('POST', '/api/guide', { messages: [{ role: 'user', text: 'what does neem do?' }] });
   assert.equal(normal.data.needs_quiz, undefined, 'ordinary questions never need the quiz');
 });
+
+// ======================= Sessions, live, notifications, account extras, reviews, analytics, support =======================
+const store = require('../src/store');
+const sessionOf = (jar) => {
+  const jwt = require('jsonwebtoken');
+  return jwt.decode(jar.get('kanti_session')).sid;
+};
+async function signedIn(remember) {
+  const { c, email } = await newUser();
+  const r = await c('POST', '/api/auth/login', { email, password: 'longenough1', remember });
+  return { c, email, r, sid: sessionOf(r.jar) };
+}
+
+test('remember me: a browser-session cookie without it, 30 days with it', async () => {
+  const a = await signedIn(false);
+  assert.doesNotMatch(a.r.headers.getSetCookie().join('\n'), /kanti_session=[^;]+;[^\n]*Max-Age/);
+  const b = await signedIn(true);
+  assert.match(b.r.headers.getSetCookie().join('\n'), /kanti_session=[^;]+;[^\n]*Max-Age=2592000/);
+  assert.equal(store.sessions.get(b.sid).remember, 1);
+});
+
+test('inactivity: the server ends idle sessions (remembered ones survive only with every tab closed)', async () => {
+  const old = new Date(Date.now() - 8 * 60e3).toISOString(), fresh = new Date().toISOString();
+  const set = (sid, last, tab) => db.raw.prepare('UPDATE sessions SET last_active_at = ?, tab_seen_at = ? WHERE id = ?').run(last, tab, sid);
+  // Not remembered: idle 8 min → signed out, even with the tab closed.
+  const a = await signedIn(false);
+  set(a.sid, old, old);
+  let r = await a.c('GET', '/api/me');
+  assert.equal(r.status, 401); assert.equal(r.data.reason, 'idle');
+  assert.match(r.data.error, /inactivity/);
+  // Remembered + tab still open but idle → signed out.
+  const b = await signedIn(true);
+  set(b.sid, old, fresh);
+  assert.equal((await b.c('GET', '/api/me')).data.reason, 'idle');
+  // Remembered + every tab closed → still signed in when they come back.
+  const c = await signedIn(true);
+  set(c.sid, old, old);
+  assert.equal((await c.c('GET', '/api/me')).status, 200);
+  // Activity pings keep a session alive; pings without activity don't.
+  const d = await signedIn(false);
+  set(d.sid, new Date(Date.now() - 60e3).toISOString(), fresh);
+  await d.c('POST', '/api/session/ping', { active: false });
+  assert.ok(Date.now() - Date.parse(store.sessions.get(d.sid).last_active_at) >= 59e3, 'background ping is not activity');
+  await d.c('POST', '/api/session/ping', { active: true });
+  assert.ok(Date.now() - Date.parse(store.sessions.get(d.sid).last_active_at) < 5e3);
+  const cfg = await client()('GET', '/api/session');
+  assert.deepEqual(cfg.data.idle, { warn_s: 300, grace_s: 120 });
+});
+
+test('devices: list sessions, sign out one device or all others; logout and password change end sessions', async () => {
+  const { c: phone, email } = await newUser();
+  const laptop = client();
+  await laptop('POST', '/api/auth/login', { email, password: 'longenough1' });
+  const list = await laptop('GET', '/api/me/sessions');
+  assert.equal(list.data.sessions.length, 2);
+  assert.equal(list.data.sessions.filter((s) => s.current).length, 1);
+  assert.ok(list.data.sessions[0].device.label);
+  const other = list.data.sessions.find((s) => !s.current);
+  assert.equal((await laptop('DELETE', `/api/me/sessions/${other.id}`)).status, 200);
+  const gone = await phone('GET', '/api/me');
+  assert.equal(gone.status, 401); assert.equal(gone.data.reason, 'revoked');
+  // sign out everywhere else
+  const tablet = client(); await tablet('POST', '/api/auth/login', { email, password: 'longenough1' });
+  assert.equal((await laptop('POST', '/api/me/sessions/sign-out-others')).data.ended, 1);
+  assert.equal((await tablet('GET', '/api/me')).status, 401);
+  // password change keeps this device, ends the others
+  const watch = client(); await watch('POST', '/api/auth/login', { email, password: 'longenough1' });
+  assert.equal((await laptop('POST', '/api/me/password', { current: 'longenough1', next: 'evenlonger22' })).status, 200);
+  assert.equal((await laptop('GET', '/api/me')).status, 200);
+  assert.equal((await watch('GET', '/api/me')).status, 401);
+  // logout ends the session on the server, so a copied cookie stops working
+  const copy = new Map(laptop.jar || []);
+  const snap = (await laptop('GET', '/api/me')).jar; const saved = new Map(snap);
+  await laptop('POST', '/api/auth/logout');
+  const replay = await fetch(base + '/api/me', { headers: { Cookie: [...saved].map(([k, v2]) => `${k}=${v2}`).join('; ') } });
+  assert.equal(replay.status, 401, 'old cookie is dead after logout');
+  void copy;
+});
+
+test('live updates: another tab gets a "cart" event when the bag changes', async () => {
+  const { c, r } = await (async () => { const u = await newUser(); return { c: u.c, r: await u.c('GET', '/api/me') }; })();
+  const cookie = [...r.jar].map(([k, v2]) => `${k}=${v2}`).join('; ');
+  const ctrl = new AbortController();
+  const res = await fetch(base + '/api/live?tab=tab-b', { headers: { Cookie: cookie }, signal: ctrl.signal });
+  const reader = res.body.getReader();
+  const seen = [];
+  const reading = (async () => {
+    const dec = new TextDecoder();
+    for (;;) { const { value, done } = await reader.read(); if (done) break; seen.push(dec.decode(value)); if (seen.join('').includes('event: cart')) break; }
+  })().catch(() => {});
+  await new Promise((r2) => setTimeout(r2, 100));
+  await fetch(base + '/api/cart', { method: 'PUT', headers: { Cookie: cookie, 'Content-Type': 'application/json', 'X-Kanti-Tab': 'tab-a' }, body: JSON.stringify({ items: [{ id: 'p1', qty: 1 }] }) });
+  await Promise.race([reading, new Promise((r2) => setTimeout(r2, 2000))]);
+  ctrl.abort();
+  assert.match(seen.join(''), /event: hello/);
+  assert.match(seen.join(''), /event: cart/);
+  void c;
+});
+
+test('notifications: shipping an order notifies the customer; read state; push subscription validated', async () => {
+  const { c } = await newUser();
+  const o = await c('POST', '/api/orders', { items: [{ id: 'p3', qty: 1 }], ship_to: SHIP });
+  const admin = await adminClient();
+  await admin('PATCH', `/api/admin/orders/${o.data.order.order_no}`, { status: 'shipped', tracking_no: 'TRK1' });
+  let n = await c('GET', '/api/notifications');
+  assert.equal(n.data.unread, 1);
+  assert.match(n.data.notifications[0].title, /shipped/);
+  assert.match(n.data.notifications[0].body, /TRK1/);
+  assert.equal((await c('POST', '/api/notifications/read', {})).data.unread, 0);
+  assert.equal((await c('POST', '/api/push/subscribe', { subscription: { endpoint: 'http://insecure' } })).status, 400);
+  assert.equal((await c('POST', '/api/push/subscribe', { subscription: { endpoint: 'https://push.example/abc', keys: { p256dh: 'x', auth: 'y' } } })).status, 201);
+  n = await c('GET', '/api/notifications');
+  assert.equal(n.data.push.devices, 1);
+  assert.ok(n.data.push.publicKey, 'VAPID key generated');
+});
+
+test('address book: add, default syncs the profile, checkout remembers new addresses, max fields validated', async () => {
+  const { c } = await newUser();
+  assert.equal((await c('POST', '/api/me/addresses', { address: '1 A St' })).status, 400);
+  let r = await c('POST', '/api/me/addresses', { label: 'Home', address: '1 A St', city: 'Savannah', zip: '31401', country: 'USA' });
+  assert.equal(r.data.addresses.length, 1); assert.equal(r.data.addresses[0].is_default, 1, 'first one is the default');
+  r = await c('POST', '/api/me/addresses', { label: 'Work', address: '9 B Ave', city: 'Atlanta', zip: '30301' });
+  const work = r.data.addresses.find((a) => a.label === 'Work');
+  r = await c('POST', `/api/me/addresses/${work.id}/default`);
+  assert.equal(r.data.addresses[0].label, 'Work');
+  assert.equal((await c('GET', '/api/me')).data.user.city, 'Atlanta', 'default address mirrored on the profile');
+  await c('POST', '/api/orders', { items: [{ id: 'p1', qty: 1 }], ship_to: { ...SHIP, address: '77 New Rd' } });
+  assert.ok((await c('GET', '/api/me/addresses')).data.addresses.some((a) => a.address === '77 New Rd'));
+  await c('POST', '/api/orders', { items: [{ id: 'p1', qty: 1 }], ship_to: { ...SHIP, address: '77 new rd' } });
+  assert.equal((await c('GET', '/api/me/addresses')).data.addresses.filter((a) => /77 new rd/i.test(a.address)).length, 1, 'no duplicates');
+  r = await c('DELETE', `/api/me/addresses/${work.id}`);
+  assert.equal(r.data.addresses.filter((a) => a.is_default).length, 1, 'another becomes default');
+});
+
+test('email preferences: marketing emails carry one-click unsubscribe; opting out stops them', async () => {
+  const admin = await adminClient();
+  const { c, email: who } = await newUser();
+  const prefs = await c('GET', '/api/me/email-prefs');
+  assert.equal(prefs.data.prefs.product_news, true);
+  assert.equal(prefs.data.prefs.reminders, false, 'reminder emails are opt-in');
+  const p = (await admin('POST', '/api/admin/products', { name: 'Unsub Test Oil', category: 'Face Oil', slot: 'Treat', price: 12, skin: ['dry'], dosha: ['vata'], ings: ['Sesame'], benefit: 'Soft.' })).data.product;
+  const before = outbox.length;
+  await admin('POST', `/api/admin/products/${p.id}/announce`);
+  const mail = () => outbox.slice(before).find((m) => m.to === who.toLowerCase() && /New at Kanti/.test(m.subject));
+  for (let i = 0; i < 40 && !mail(); i++) await new Promise((r2) => setTimeout(r2, 50));
+  assert.ok(mail(), 'announcement sent');
+  assert.match(mail().headers['List-Unsubscribe'], /^<http.*\/api\/email\/unsubscribe\?/);
+  assert.equal(mail().headers['List-Unsubscribe-Post'], 'List-Unsubscribe=One-Click');
+  const url = mail().headers['List-Unsubscribe'].slice(1, -1).replace(/^https?:\/\/[^/]+/, base);
+  assert.equal((await fetch(url)).status, 200);
+  assert.equal((await fetch(url.replace(/t=[^&]+/, 't=forged'))).status, 400, 'forged token rejected');
+  assert.equal((await fetch(url, { method: 'POST' })).status, 200);
+  assert.equal((await c('GET', '/api/me/email-prefs')).data.prefs.product_news, false);
+  const before2 = outbox.length;
+  await admin('POST', `/api/admin/products/${p.id}/announce`);
+  await new Promise((r2) => setTimeout(r2, 300));
+  assert.equal(outbox.slice(before2).filter((m) => m.to === who.toLowerCase()).length, 0, 'opted out → no email');
+  assert.equal((await c('PUT', '/api/me/email-prefs', { prefs: { product_news: true } })).data.prefs.product_news, true);
+});
+
+test('preferences and profile photo', async () => {
+  const { c } = await newUser();
+  assert.equal((await c('PATCH', '/api/me/prefs', { lang: 'fr' })).status, 400);
+  assert.equal((await c('PATCH', '/api/me/prefs', { tz: 'Mars/Olympus' })).status, 400);
+  const r = await c('PATCH', '/api/me/prefs', { lang: 'hi', temp_unit: 'f', tz: 'America/New_York', reminders: { enabled: true, am: '06:45', pm: '22:00' } });
+  assert.deepEqual(r.data.prefs.reminders, { enabled: true, am: '06:45', pm: '22:00' });
+  assert.equal((await c('GET', '/api/me')).data.user.prefs.lang, 'hi');
+  const png = 'data:image/png;base64,' + Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]).toString('base64');
+  assert.equal((await c('PUT', '/api/me/avatar', { image: 'data:image/png;base64,' + Buffer.from('not an image').toString('base64') })).status, 400);
+  assert.equal((await c('PUT', '/api/me/avatar', { image: png })).status, 200);
+  assert.equal((await c('GET', '/api/me')).data.user.has_avatar, true);
+  assert.equal((await c('GET', '/api/me')).data.user.avatar, undefined, 'photo bytes never in the user payload');
+});
+
+test('reminders: due at the person’s own local time, once a day', async () => {
+  const { c } = await newUser();
+  const tz = 'Asia/Kolkata';
+  const { localParts, runScheduler } = require('../src/notify');
+  const t = localParts(tz);
+  const am = t.hm <= '11:59' ? '00:00' : null;
+  await c('PATCH', '/api/me/prefs', { tz, reminders: { enabled: true, am: am || '07:30', pm: t.hm >= '12:00' ? '12:00' : '23:59' } });
+  runScheduler(); runScheduler();
+  const n = (await c('GET', '/api/notifications')).data.notifications.filter((x) => x.kind === 'reminder');
+  assert.equal(n.length, 1, 'exactly one reminder, not repeated');
+});
+
+test('reviews: pending until approved, verified purchase badge, filter by dosha, ratings in the catalogue', async () => {
+  const admin = await adminClient();
+  const { c: buyer } = await newUser({ name: 'Meera Iyer' });
+  await buyer('POST', '/api/quiz/results', { skinType: 'oily', dosha: 'pitta' });
+  await buyer('POST', '/api/orders', { items: [{ id: 'p7', qty: 1 }], ship_to: SHIP });
+  const { c: browser } = await newUser();
+  assert.equal((await buyer('POST', '/api/products/p7/reviews', { rating: 6, body: 'great product here' })).status, 400);
+  assert.equal((await buyer('POST', '/api/products/p7/reviews', { rating: 5, body: 'short' })).status, 400);
+  const w = await buyer('POST', '/api/products/p7/reviews', { rating: 5, title: 'Calm skin', body: 'Light and cooling, my redness calmed down.' });
+  assert.equal(w.data.review.status, 'pending'); assert.equal(w.data.review.verified, true);
+  await browser('POST', '/api/products/p7/reviews', { rating: 2, body: 'Not for me, felt too light.' });
+  assert.equal((await client()('GET', '/api/products/p7/reviews')).data.reviews.length, 0, 'nothing public before moderation');
+  const pending = (await admin('GET', '/api/admin/reviews?status=pending')).data.reviews.filter((r) => r.product_id === 'p7');
+  for (const r of pending) await admin('PATCH', `/api/admin/reviews/${r.id}`, { status: 'approved' });
+  const pub = await client()('GET', '/api/products/p7/reviews');
+  assert.equal(pub.data.reviews.length, 2);
+  assert.equal(pub.data.reviews[0].verified, true, 'verified purchases first');
+  assert.equal(pub.data.reviews[0].author, 'Asha R.', 'first name + initial only (checkout saved the shipping name)');
+  assert.equal(pub.data.summary.avg, 3.5);
+  assert.equal((await client()('GET', '/api/products/p7/reviews?dosha=pitta')).data.reviews.length, 1);
+  assert.deepEqual((await client()('GET', '/api/products')).data.ratings.p7, { count: 2, avg: 3.5 });
+});
+
+test('popularity comes only from real orders, grouped by the buyers’ dosha', async () => {
+  for (let i = 0; i < 2; i++) {
+    const { c } = await newUser();
+    await c('POST', '/api/quiz/results', { skinType: 'dry', dosha: 'vata' });
+    await c('POST', '/api/orders', { items: [{ id: 'p8', qty: 1 }], ship_to: SHIP });
+  }
+  const pop = (await client()('GET', '/api/products')).data.popular;
+  assert.ok(pop.p8.byDosha.vata >= 2);
+  assert.equal(pop.p12, undefined, 'no orders → no badge');
+});
+
+test('analytics: anonymous events build the funnel; unknown events ignored; searches reported', async () => {
+  const admin = await adminClient();
+  const anon = 'test-anon-' + Date.now();
+  const t = await client()('POST', '/api/track', { anon_id: anon, events: [
+    { name: 'quiz_start' }, { name: 'quiz_complete' }, { name: 'results_view' }, { name: 'add_to_cart', props: { id: 'p1' } },
+    { name: 'shop_search', props: { q: 'Lip Balm', results: 0 } }, { name: 'evil_event' }, { name: 'order_placed' },
+  ] });
+  assert.equal(t.status, 204);
+  await client()('POST', '/api/search/beyond', { q: 'lip balm', anon_id: anon });
+  const r = (await admin('GET', '/api/admin/analytics?days=7')).data.report;
+  const step = (k) => r.funnel.find((f) => f.key === k).visitors;
+  assert.ok(step('quiz_start') >= 1 && step('add_to_cart') >= 1);
+  assert.ok(r.searches.some((s) => s.q === 'lip balm' && s.zero >= 1));
+  assert.ok(r.unmet.some((s) => s.q === 'lip balm'));
+  assert.equal(db.raw.prepare("SELECT count(*) n FROM events WHERE name = 'evil_event'").get().n, 0);
+  assert.equal(db.raw.prepare("SELECT count(*) n FROM events WHERE name = 'order_placed' AND anon_id = ?").get(anon).n, 0, 'orders are only logged by the server');
+});
+
+test('support inbox: guest ticket via private link, customer ticket tied to an order, staff replies by email', async () => {
+  const admin = await adminClient();
+  const guest = client();
+  assert.equal((await guest('POST', '/api/support/tickets', { name: 'Ravi', email: 'bad', message: 'Hello there team' })).status, 400);
+  const before = outbox.length;
+  const g = await guest('POST', '/api/support/tickets', { name: 'Ravi', email: 'ravi@example.com', topic: 'product', message: 'Is the toner alcohol-free?' });
+  assert.equal(g.status, 201);
+  assert.match(g.data.ticket.ref, /^KS-/);
+  const token = g.data.link.split('=')[1];
+  assert.equal((await guest('GET', `/api/support/access/${token}`)).data.ticket.messages.length, 1);
+  assert.equal((await guest('GET', `/api/support/access/${'0'.repeat(48)}`)).status, 404);
+  for (let i = 0; i < 40 && !outbox.slice(before).some((m) => m.subject.includes(g.data.ticket.ref)); i++) await new Promise((r2) => setTimeout(r2, 50));
+  assert.ok(outbox.slice(before).some((m) => m.to === 'ravi@example.com' && m.subject.includes(g.data.ticket.ref)));
+
+  const { c } = await newUser();
+  const o = await c('POST', '/api/orders', { items: [{ id: 'p2', qty: 1 }], ship_to: SHIP });
+  const t = await c('POST', '/api/support/tickets', { topic: 'order', order_no: o.data.order.order_no, message: 'My parcel has not arrived yet.' });
+  assert.equal(t.data.ticket.order_no, o.data.order.order_no);
+  const { c: stranger } = await newUser();
+  assert.equal((await stranger('GET', `/api/support/tickets/${t.data.ticket.ref}`)).status, 404, 'private to its owner');
+  const sneaky = await stranger('POST', '/api/support/tickets', { topic: 'order', order_no: o.data.order.order_no, message: 'trying to attach someone else’s order' });
+  assert.equal(sneaky.data.ticket.order_no, null);
+
+  const inbox = await admin('GET', '/api/admin/tickets?status=open');
+  assert.ok(inbox.data.tickets.some((x) => x.ref === t.data.ticket.ref));
+  const rep = await admin('POST', `/api/admin/tickets/${t.data.ticket.ref}/reply`, { message: 'Sorry! It ships tomorrow.' });
+  assert.equal(rep.data.ticket.status, 'waiting');
+  const mine = await c('GET', `/api/support/tickets/${t.data.ticket.ref}`);
+  assert.equal(mine.data.ticket.messages.at(-1).author, 'staff');
+  assert.ok((await c('GET', '/api/notifications')).data.notifications.some((n) => n.kind === 'support'));
+  await c('POST', `/api/support/tickets/${t.data.ticket.ref}/messages`, { message: 'Thank you!' });
+  assert.equal((await c('GET', `/api/support/tickets/${t.data.ticket.ref}`)).data.ticket.status, 'open');
+});

@@ -191,6 +191,82 @@ const MIGRATIONS = [
       updated_at TEXT NOT NULL,
       PRIMARY KEY (user_id, day)
     );`),
+
+  // 5 — server-side sessions (devices, idle sign-out), notifications + web push, address book,
+  //     email opt-outs, preferences + profile photo, reviews, analytics events, support tickets
+  () => {
+    db.exec(`
+    CREATE TABLE sessions (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      remember INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, last_active_at TEXT NOT NULL, tab_seen_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+      user_agent TEXT, ip TEXT, revoked_at TEXT, revoked_reason TEXT
+    );
+    CREATE INDEX idx_sessions_user ON sessions(user_id);
+    CREATE TABLE notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', link TEXT,
+      created_at TEXT NOT NULL, read_at TEXT
+    );
+    CREATE INDEX idx_notifications_user ON notifications(user_id, id);
+    CREATE TABLE notify_log (user_id INTEGER NOT NULL, kind TEXT NOT NULL, day TEXT NOT NULL, PRIMARY KEY (user_id, kind, day));
+    CREATE TABLE push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE TABLE addresses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      label TEXT, name TEXT, phone TEXT, address TEXT NOT NULL, address2 TEXT, city TEXT, state TEXT, zip TEXT, country TEXT,
+      is_default INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_addresses_user ON addresses(user_id);
+    CREATE TABLE email_optouts (email TEXT NOT NULL, category TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (email, category));
+    ALTER TABLE email_outbox ADD COLUMN headers_json TEXT;
+    ALTER TABLE users ADD COLUMN prefs_json TEXT;
+    ALTER TABLE users ADD COLUMN avatar BLOB;
+    ALTER TABLE users ADD COLUMN avatar_type TEXT;
+    CREATE TABLE reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      title TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+      verified INTEGER NOT NULL DEFAULT 0, skin TEXT, dosha TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, moderated_at TEXT,
+      UNIQUE (product_id, user_id)
+    );
+    CREATE INDEX idx_reviews_product ON reviews(product_id, status);
+    CREATE TABLE events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL, anon_id TEXT, user_id INTEGER, props_json TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_events_time ON events(created_at);
+    CREATE INDEX idx_events_name ON events(name, created_at);
+    CREATE TABLE tickets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ref TEXT NOT NULL UNIQUE,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      email TEXT NOT NULL, name TEXT NOT NULL, topic TEXT NOT NULL, subject TEXT NOT NULL, order_no TEXT,
+      status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','waiting','closed')),
+      access_hash TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_tickets_user ON tickets(user_id);
+    CREATE TABLE ticket_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      author TEXT NOT NULL CHECK (author IN ('customer','staff')),
+      body TEXT NOT NULL, created_at TEXT NOT NULL
+    );`);
+    // Existing saved addresses become the default entry in each user's address book.
+    db.prepare(`INSERT INTO addresses (user_id, label, name, phone, address, address2, city, state, zip, country, is_default, created_at)
+      SELECT id, 'Home', name, phone, address, address2, city, state, zip, country, 1, coalesce(updated_at, created_at)
+      FROM users WHERE address IS NOT NULL AND trim(address) != ''`).run();
+  },
 ];
 
 function migrate() {
@@ -263,8 +339,10 @@ const isAdmin = (u) => !!(u && ADMIN_EMAIL && u.email === ADMIN_EMAIL);
 
 function publicUser(u) {
   if (!u) return null;
-  const { password_hash, token_version, ...safe } = u;
-  return { ...safe, is_admin: isAdmin(u) };
+  const { password_hash, token_version, avatar, avatar_type, prefs_json, ...safe } = u;
+  let prefs = {};
+  try { prefs = prefs_json ? JSON.parse(prefs_json) : {}; } catch { /* ignore */ }
+  return { ...safe, is_admin: isAdmin(u), has_avatar: !!avatar, prefs };
 }
 
 // ---------- Orders ----------
@@ -496,9 +574,9 @@ module.exports = {
   },
 
   // email outbox
-  enqueueEmail({ to, subject, html, kind, ref }) {
-    return db.prepare(`INSERT INTO email_outbox (to_addr, subject, html, kind, ref, next_attempt_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`).run(to, subject, html, kind, ref || null, now(), now()).lastInsertRowid;
+  enqueueEmail({ to, subject, html, kind, ref, headers }) {
+    return db.prepare(`INSERT INTO email_outbox (to_addr, subject, html, kind, ref, next_attempt_at, created_at, headers_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(to, subject, html, kind, ref || null, now(), now(), headers ? JSON.stringify(headers) : null).lastInsertRowid;
   },
   // Atomically claims due emails so two workers never send the same one.
   claimDueEmails(limit = 10) {
@@ -611,6 +689,7 @@ module.exports = {
       wishlist: this.getWishlist(userId),
       stock_alerts: this.userStockAlerts(userId),
       skin_diary: this.getDiary(userId, 10000),
+      ...require('./store').exportExtras(userId),
     };
   },
 

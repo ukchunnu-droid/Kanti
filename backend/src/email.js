@@ -117,13 +117,47 @@ function passwordResetHtml(user, link) {
       <p style="color:#6B746C;font-size:13px">Didn't ask for this? You can ignore this email — your password won't change.</p>`);
 }
 
-function backInStockHtml(product, link) {
-  return shell(`
+function backInStockInner(product, link) {
+  return `
       <h2 style="margin:0 0 6px;font-size:20px">${esc(product.name)} is back 🌿</h2>
       <p style="color:#6B746C">You asked us to tell you when this was back in stock — it is, but stock is limited.</p>
       <p style="margin:20px 0"><a href="${esc(link)}" style="background:#20453B;color:#FBF8EF;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">See it in the shop</a></p>
-      <p style="color:#6B746C;font-size:13px">This was a one-time alert. You won't get more emails about this product.</p>`);
+      <p style="color:#6B746C;font-size:13px">This was a one-time alert for this product.</p>`;
 }
+
+// ---------- Marketing emails: opt-outs + unsubscribe ----------
+// Every non-essential email checks the recipient's preferences first and carries a one-click
+// unsubscribe link (footer + List-Unsubscribe header), as US marketing-email law (CAN-SPAM) requires.
+const crypto = require('crypto');
+const APP_URL = () => (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
+function unsubToken(email, category) {
+  const secret = require('./auth').SECRET;
+  return crypto.createHmac('sha256', secret).update(String(email).toLowerCase() + '|' + category).digest('base64url').slice(0, 32);
+}
+function unsubscribeUrl(email, category) {
+  return `${APP_URL()}/api/email/unsubscribe?e=${encodeURIComponent(Buffer.from(String(email).toLowerCase()).toString('base64url'))}&c=${encodeURIComponent(category)}&t=${unsubToken(email, category)}`;
+}
+function checkUnsubscribe(e, c, t) {
+  let email;
+  try { email = Buffer.from(String(e || ''), 'base64url').toString('utf8'); } catch { return null; }
+  if (!email.includes('@') || !t) return null;
+  const want = unsubToken(email, c);
+  const ok = want.length === String(t).length && crypto.timingSafeEqual(Buffer.from(want), Buffer.from(String(t)));
+  return ok ? email : null;
+}
+function marketing(to, category, subject, inner, kind, ref) {
+  const store = require('./store');
+  if (!store.optouts.allowed(to, category)) return Promise.resolve({ queued: false, optedOut: true });
+  const url = unsubscribeUrl(to, category);
+  const label = store.EMAIL_CATEGORIES[category] || category;
+  const html = shell(inner + `
+      <p style="color:#9AA39B;font-size:12px;margin-top:26px;border-top:1px solid #E3DFD3;padding-top:12px">
+        You’re receiving this because “${esc(label)}” is on in your Kanti email preferences.
+        <a href="${esc(url)}" style="color:#6B746C">Unsubscribe</a> ·
+        <a href="${esc(APP_URL())}/#account" style="color:#6B746C">Email preferences</a></p>`);
+  return queue({ to, subject, html, kind, ref, headers: { 'List-Unsubscribe': `<${url}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } });
+}
+const btn = (href, text) => `<p style="margin:20px 0"><a href="${esc(href)}" style="background:#20453B;color:#FBF8EF;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">${esc(text)}</a></p>`;
 
 // ---------- Outbox ----------
 const BACKOFF_MIN = [1, 5, 30, 120, 720]; // after attempt 1..5; attempt 6 failing = give up
@@ -134,9 +168,10 @@ async function deliver(row) {
     const transport = await getTransport();
     const info = await transport.sendMail({
       from: process.env.MAIL_FROM || 'Kanti <orders@kanti.example>', to: row.to_addr, subject: row.subject, html: row.html,
+      headers: row.headers_json ? JSON.parse(row.headers_json) : undefined,
     });
     const preview = nodemailer.getTestMessageUrl(info) || null; // only on Ethereal
-    if (process.env.EMAIL_TRANSPORT === 'json') outbox.push({ to: row.to_addr, subject: row.subject, html: row.html });
+    if (process.env.EMAIL_TRANSPORT === 'json') outbox.push({ to: row.to_addr, subject: row.subject, html: row.html, headers: row.headers_json ? JSON.parse(row.headers_json) : {} });
     db.markEmailSent(row.id, preview);
     if (row.kind === 'order' && row.ref && preview) db.setOrderEmailPreview(row.ref, preview);
     log.info('email sent', { id: row.id, kind: row.kind, ref: row.ref, ...(preview ? { preview } : {}) });
@@ -174,8 +209,8 @@ function stopWorker() { if (workerTimer) clearInterval(workerTimer); }
 
 // Saves the email, then tries to send it right away. Resolves within `waitMs` either way —
 // if it isn't sent by then (or fails), the worker keeps retrying in the background.
-function queue({ to, subject, html, kind, ref }, waitMs = 0) {
-  const id = db.enqueueEmail({ to, subject, html, kind, ref });
+function queue({ to, subject, html, kind, ref, headers }, waitMs = 0) {
+  const id = db.enqueueEmail({ to, subject, html, kind, ref, headers });
   const row = db.claimEmail(id);
   const sending = row ? deliver(row) : Promise.resolve({ ok: false });
   if (!waitMs) { sending.catch(() => {}); return Promise.resolve({ queued: true }); }
@@ -216,8 +251,25 @@ module.exports = {
   queueVerification: (user, link) => queue({
     to: user.email, subject: 'Confirm your Kanti email', html: verifyEmailHtml(user, link), kind: 'verify',
   }),
-  queueBackInStock: (to, product, link) => queue({
-    to, subject: `${product.name} is back in stock`, html: backInStockHtml(product, link), kind: 'restock', ref: product.id,
+  queueBackInStock: (to, product, link) => marketing(to, 'restock', `${product.name} is back in stock`, backInStockInner(product, link), 'restock', product.id),
+  queueProductNews: (to, name, product) => marketing(to, 'product_news', `New at Kanti: ${product.name} 🌿`, `
+      <h2 style="margin:0 0 6px;font-size:20px">New: ${esc(product.name)}</h2>
+      <p style="color:#6B746C">Hi ${esc((name || '').split(' ')[0] || 'there')}, ${esc(product.benefit || 'something new just arrived in the shop.')}</p>
+      <p style="color:#6B746C">Key ingredients: ${esc((product.ings || []).join(', '))}.</p>${btn(APP_URL() + '/#shop', 'See it in the shop')}`, 'product_news', product.id),
+  queueReviewRequest: (to, name, items) => marketing(to, 'review_requests', 'How is your Kanti order working for you?', `
+      <h2 style="margin:0 0 6px;font-size:20px">How’s it going?</h2>
+      <p style="color:#6B746C">Hi ${esc((name || '').split(' ')[0] || 'there')}, your order arrived. When you’ve used it for a little while,
+        a quick review of ${items.map((i) => `<b>${esc(i.name)}</b>`).join(', ')} helps others with skin like yours.</p>${btn(APP_URL() + '/#account', 'Write a review')}`, 'review', null),
+  queueReminder: (to, name, title, body) => marketing(to, 'reminders', title, `
+      <h2 style="margin:0 0 6px;font-size:20px">${esc(title)}</h2><p style="color:#6B746C">${esc(body)}</p>${btn(APP_URL() + '/#routine', 'Open my routine')}`, 'reminder', null),
+  // Support tickets are service emails (always sent).
+  queueTicketEmail: (to, name, ticket, text, link) => queue({
+    to, subject: `[${ticket.ref}] ${ticket.subject}`, kind: 'support', ref: ticket.ref, html: shell(`
+      <h2 style="margin:0 0 6px;font-size:20px">${esc(ticket.subject)}</h2>
+      <p style="color:#6B746C">Hi ${esc((name || '').split(' ')[0] || 'there')},</p>
+      <div style="white-space:pre-wrap;border-left:3px solid #C9972F;padding:4px 0 4px 12px;margin:12px 0">${esc(text)}</div>
+      ${btn(link, 'View and reply')}<p style="color:#9AA39B;font-size:12px">Request ${esc(ticket.ref)}</p>`),
   }),
+  unsubscribeUrl, checkUnsubscribe,
   processOutbox, startWorker, stopWorker, outbox, testHooks,
 };
