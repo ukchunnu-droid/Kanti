@@ -29,6 +29,7 @@ async function nextQ(){
     toast('Couldn’t reach the server — showing an offline result');
   }
   clearQuizProgress();
+  track('quiz_complete',{dosha:state.profile.dosha,skin:state.profile.skin});
   // Then the AI routine. Wait a little for it so the results open complete; if it's slow,
   // the rule-based routine shows first and the AI version swaps in when it arrives.
   if(state.view==='quiz'){ state.classifying='building'; renderQuiz(); }
@@ -174,6 +175,9 @@ function render(){
   else if(state.view==='routine')renderRoutine();
   else if(state.view==='saved')renderSaved();
   else if(state.view==='compare')renderCompare();
+  else if(state.view==='journey')renderJourney();
+  else if(state.view==='contact')renderContact();
+  else if(state.view==='ticket')renderTicket();
   else if(AUTH_VIEWS.includes(state.view))renderAuth(state.view);
   hideTip();
   enhanceTips(app);
@@ -186,7 +190,7 @@ function renderHome(){
     <div class="wrap">
       <div>
         <div class="hero-eyebrow">Ayurvedic skincare · made personal</div>
-        <h1>Skincare that fits <em>your nature.</em></h1>
+        <h1>${t('Skincare that fits')} <em>${t('your nature.')}</em></h1>
         <p>Stop guessing across a dozen unreliable sites. Take a 2-minute quiz and get an ingredient-matched routine built around your skin type and your dosha.</p>
         <div class="hero-cta">
           <button class="btn btn-gold" data-go="quiz">Find your routine →</button>
@@ -211,6 +215,8 @@ function renderHome(){
       </div>
     </div>
   </section>
+
+  ${todayHTML()}
 
   <div class="trust-strip"><div class="wrap">
     <div class="trust-item"><i>🌿</i> Full ingredient transparency</div>
@@ -242,6 +248,8 @@ function renderHome(){
       : `<div class="section-head"><div class="eyebrow">Bestsellers</div><h2>A few favourites</h2></div>
          <div class="grid">${PRODUCTS.slice(0,3).map(cardHTML).join('')}</div>`}
   </section>
+  ${recentHTML()}
+
 
   ${footerHTML()}`;
 }

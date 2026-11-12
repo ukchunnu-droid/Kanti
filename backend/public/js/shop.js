@@ -66,13 +66,16 @@ function cardHTML(p) {
   const flag = (p.safety || []).find((s) => /safe|free/i.test(s));
   const out = soldOut(p), saved = isWished(p.id), cmp = state.compare.includes(p.id);
   const why = state.profile ? whyFor(p.id) : '', skip = state.profile && isSkip(p.id);
+  const rt = RATINGS[p.id], pop = popularLabel(p), fresh = isNewProduct(p);
   return `<div class="card ${out ? 'is-out' : ''}" data-act="openModal" data-arg="${esc(p.id)}" tabindex="0" role="button" aria-label="${esc(p.name)} — details">
-    <div class="card-img" style="background:${esc(p.bg)}">${productArt(p, 'card')}${flag ? `<span class="card-flag">${esc(flag)}</span>` : ''}${stockBadge(p)}
+    <div class="card-img" style="background:${esc(p.bg)}">${productArt(p, 'card')}${fresh ? `<span class="card-flag new">${t('New')}</span>` : flag ? `<span class="card-flag">${esc(flag)}</span>` : ''}${stockBadge(p)}
       <button class="heart ${saved ? 'on' : ''}" data-act="toggleWish" data-arg="${esc(p.id)}" aria-pressed="${saved}" aria-label="${saved ? 'Remove from saved' : 'Save for later'}" title="${saved ? 'Remove from saved' : 'Save for later'}">${saved ? '♥' : '♡'}</button></div>
     <div class="card-body">
       <div class="cat">${esc(p.cat)}</div>
       <h3>${esc(p.name)}</h3>
+      ${rt ? starsHTML(rt.avg, rt.count, true) : ''}
       <div class="benefit">${esc(p.benefit)}</div>
+      ${pop ? `<div class="pop-flag">${esc(pop)}</div>` : ''}
       ${why ? `<div class="card-why ${skip ? 'skip' : ''}">${skip ? '⚠︎ ' : '✦ '}${esc(why)}</div>` : ''}
       <div class="card-ings">${(p.ings || []).slice(0, 3).map((i) => `<span class="ing-tag">${esc(i)}</span>`).join('')}</div>
       <div class="card-foot">
@@ -167,7 +170,7 @@ function scheduleShopBeyond(q) {
 function shopBeyondSearch() { runShopBeyond(aiQ()); }
 function runShopBeyond(q) {
   if (q.length < 3 || shopAi.cache.has(q) || shopAi.pending.has(q)) return;
-  const req = API.searchBeyond(q, state.profile ? recoProfile(state.profile) : null)
+  const req = API.req('/api/search/beyond', 'POST', { q, profile: state.profile ? recoProfile(state.profile) : null, anon_id: AID })
     .then((d) => shopAi.cache.set(q, d))
     .catch((e) => shopAi.cache.set(q, { error: e.status === 429 ? 'You’ve searched a lot — please try again in a little while.' : 'Couldn’t search beyond Kanti right now.' }))
     .finally(() => {
@@ -194,7 +197,7 @@ function shopBeyondResultHTML(d) {
 function shopBeyondRetry() { shopAi.cache.delete(aiQ()); runShopBeyond(aiQ()); }
 
 function shopFilter(key, value) { state.shop[key] = value; renderShopResults(); }
-function shopSearch(q) { state.shop.q = q.slice(0, 80); renderShopResults(); }
+function shopSearch(q) { state.shop.q = q.slice(0, 80); renderShopResults(); trackSearch(state.shop.q, PRODUCTS.filter((p) => matchesSearch(p, state.shop.q)).length); }
 function shopSort(v) { if (SORTS[v]) { state.shop.sort = v; state.shop.sortChosen = true; renderShopResults(); } }
 
 // "Picked for you": the AI's add-ons and routine products, shown above the full list when no filter is on.
@@ -261,7 +264,7 @@ function clearShopFilters() {
 async function refreshProducts() {
   try {
     const r = await API.products();
-    PRODUCTS = r.products; SHIPPING = r.shipping || SHIPPING;
+    PRODUCTS = r.products; SHIPPING = r.shipping || SHIPPING; RATINGS = r.ratings || {}; POPULAR = r.popular || {};
     state.cart = state.cart.filter((c) => prod(c.id));
     state.wish = state.wish.filter((id) => prod(id));
     updateCartCount(false);

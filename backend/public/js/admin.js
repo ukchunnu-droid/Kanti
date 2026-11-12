@@ -15,6 +15,9 @@ async function adminLoad(what) {
     if (what === 'overview') { const [s, e] = await Promise.all([API.admin.stats(), API.admin.emails()]); a.stats = s.stats; a.emails = e.emails; }
     if (what === 'products') a.products = (await API.admin.products()).products;
     if (what === 'orders') a.orders = (await API.admin.orders(a.orderFilter)).orders;
+    if (what === 'reviews') a.reviews = (await API.admin.reviews(a.reviewFilter == null ? 'pending' : a.reviewFilter)).reviews;
+    if (what === 'analytics') a.analytics = await API.admin.analytics(a.analyticsDays || 30);
+    if (what === 'support') { const r = await API.admin.tickets(a.ticketFilter == null ? 'open' : a.ticketFilter); a.tickets = r.tickets; a.ticketCounts = r.counts; }
   } catch (e) {
     if (handleAuthError(e, 'admin')) return false;
     if (e.status === 403) { toast('The admin page is only for the store admin'); go('account'); return false; }
@@ -31,13 +34,14 @@ function renderAdmin() {
     return;
   }
   const a = state.admin;
-  const need = { overview: !a.stats, products: !a.products, orders: !a.orders }[a.tab];
+  const need = { overview: !a.stats, products: !a.products, orders: !a.orders, reviews: !a.reviews, analytics: !a.analytics, support: !a.tickets && !a.ticketOpen }[a.tab];
   if (need) {
     app.innerHTML = adminShell('<div class="empty-state"><div class="big">🌿</div><p>Loading…</p></div>');
     adminLoad(a.tab).then((ok) => { if (ok && state.view === 'admin') renderAdmin(); });
     return;
   }
-  const body = a.tab === 'overview' ? adminOverviewHTML() : a.tab === 'products' ? (a.editing ? productFormHTML() : adminProductsHTML()) : adminOrdersHTML();
+  const body = a.tab === 'overview' ? adminOverviewHTML() : a.tab === 'products' ? (a.editing ? productFormHTML() : adminProductsHTML())
+    : a.tab === 'reviews' ? adminReviewsHTML() : a.tab === 'analytics' ? adminAnalyticsHTML() : a.tab === 'support' ? adminSupportHTML() : adminOrdersHTML();
   app.innerHTML = adminShell(body);
   if (a.tab === 'products' && a.editing) { const i = $('#f_name'); if (i) i.focus(); }
 }
@@ -47,13 +51,16 @@ function adminShell(body) {
   const tab = (k, label) => `<button class="tab ${t === k ? 'active' : ''}" data-act="adminTab" data-arg="${k}" role="tab" aria-selected="${t === k}">${label}</button>`;
   return `<div class="wrap admin">
     <div class="section-head" style="margin-bottom:18px"><div class="eyebrow">Admin</div><h2>Run the store</h2></div>
-    <div class="tabs" role="tablist">${tab('overview', 'Overview')}${tab('products', 'Products')}${tab('orders', 'Orders')}</div>
+    <div class="tabs" role="tablist">${tab('overview', 'Overview')}${tab('products', 'Products')}${tab('orders', 'Orders')}${tab('reviews', 'Reviews')}${tab('support', 'Support')}${tab('analytics', 'Analytics')}</div>
     <div class="admin-body">${body}</div>
   </div>`;
 }
 function adminTab(k) {
   state.admin.tab = k; state.admin.editing = null;
   if (k === 'overview') state.admin.stats = null; // always fresh numbers
+  if (k === 'reviews') state.admin.reviews = null;
+  if (k === 'analytics') state.admin.analytics = null;
+  if (k === 'support') { state.admin.tickets = null; state.admin.ticketOpen = null; }
   renderAdmin();
 }
 
@@ -136,6 +143,7 @@ function adminProductsHTML() {
           <td class="row-actions">
             <button class="link-btn" data-act="adminEditProduct" data-arg="${esc(p.id)}">Edit</button>
             <button class="link-btn" data-act="adminToggleProduct" data-arg="${esc(p.id)}">${p.active ? 'Hide' : 'Show'}</button>
+            ${p.active ? `<button class="link-btn" data-act="adminAnnounce" data-arg="${esc(p.id)}" title="Email customers who opted into product news">Announce</button>` : ''}
             <button class="link-btn danger" data-act="adminDeleteProduct" data-arg="${esc(p.id)}">Delete</button>
           </td>
         </tr>`).join('')}</tbody>
@@ -316,4 +324,14 @@ async function adminSetStatus(no, status, el) {
     state.admin.orders = null; if (status === 'cancelled') refreshProducts();
     renderAdmin();
   } catch (e) { toast(e.message); if (el) el.disabled = false; }
+}
+
+// Emails customers who opted into "New products" (and adds a bell notification for everyone).
+async function adminAnnounce(id, _b, el) {
+  const p = (state.admin.products || []).find((x) => x.id === id);
+  if (!confirm(`Announce “${p ? p.name : id}” to customers? Only people who opted into product news get the email.`)) return;
+  el.disabled = true;
+  try { const r = await API.admin.announce(id); toast(`Announced — ${r.sent} email${r.sent === 1 ? '' : 's'} sent, ${r.skipped} opted out`); }
+  catch (e) { toast(e.message); }
+  el.disabled = false;
 }

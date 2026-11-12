@@ -61,11 +61,11 @@ function runScheduler() {
       notify(u.id, { kind: 'reminder', title, body, link });
       email.queueReminder(u.email, u.name, title, body).catch(() => {});
     };
-    if (due('am', r.am || '07:30', '11:59')) fire('☀️ Time for your morning routine', 'A few calm minutes: cleanse, tone, treat, moisturise, protect.', '/#routine');
-    if (due('pm', r.pm || '21:30', '23:59')) fire('🌙 Time for your evening routine', 'Wind down with your evening steps.', '/#routine');
+    if (due('am', r.am || '07:30', '11:59')) fire('Time for your morning routine', 'A few calm minutes: cleanse, tone, treat, moisturise, protect.', '/#routine');
+    if (due('pm', r.pm || '21:30', '23:59')) fire('Time for your evening routine', 'Wind down with your evening steps.', '/#routine');
     if (u.prefs.diary_nudge !== false && due('diary', '20:30', '23:59')) {
       const diary = db.getDiary(u.id, 1);
-      if (diary.length && diary[0].day !== t.day) fire('📔 How was your skin today?', 'Ten seconds in your skin diary helps you see what’s working.', '/#routine');
+      if (diary.length && diary[0].day !== t.day) fire('How was your skin today?', 'Ten seconds in your skin diary helps you see what’s working.', '/#routine');
     }
   }
 }

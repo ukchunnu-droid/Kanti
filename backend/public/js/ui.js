@@ -28,14 +28,18 @@ function hideTip(){const tip=document.getElementById('ingtip'); if(tip)tip.style
 function toggleTip(el){ activeTipEl===el ? hideTip() : showTip(el); }
 
 const AUTH_VIEWS=['signin','signup','forgot','reset'];
-const GATED_VIEWS=['checkout','account','admin']; // need a signed-in account
+const GATED_VIEWS=['checkout','account','admin','journey']; // need a signed-in account
 function go(view){
   if(GATED_VIEWS.includes(view) && !requireSignIn(view)) return;
   if(AUTH_VIEWS.includes(view) && view!=='reset' && API.isAuthed()){ view=state.next||'account'; state.next=null; }
   state.view=view;
-  if(view==='quiz'){state.qStep=0;state.answers=[];state.classifying=false;state.quizResumed=restoreQuizProgress();}
+  if(view==='quiz'){state.qStep=0;state.answers=[];state.classifying=false;state.quizResumed=restoreQuizProgress(); if(!state.quizResumed) track('quiz_start');}
+  if(view==='results') track('results_view');
+  if(view==='checkout') track('checkout_start',{items:cartQty()});
+  track('page_view',{view});
   if(view!=='account'){state.editProfile=false;state.acctForm=null;}
-  try{history.replaceState(null,'',view==='home'?location.pathname:'#'+view);}catch(e){} // also drops reset tokens from the URL
+  const hash=view==='home'?'':view==='ticket'?(state.support.ref?'#support='+state.support.ref:'#ticket'):'#'+view;
+  try{history.replaceState(null,'',hash||location.pathname);}catch(e){} // also drops reset/ticket tokens from the URL
   window.scrollTo({top:0,behavior:'instant'});
   render();
 }
@@ -46,13 +50,18 @@ function viewFromHash(){
   if(m){state.resetToken=m[1];return 'reset';}
   const vm=raw.match(/^verify=([a-f0-9]{64})$/);
   if(vm){state.verifyToken=vm[1];return 'verify';}
+  const tm=raw.match(/^ticket=([a-f0-9]{48})$/);
+  if(tm){state.support={...state.support,token:tm[1],ref:null,ticket:null};return 'ticket';}
+  const sm=raw.match(/^support=(KS-[A-Z0-9]{6})$/);
+  if(sm){state.support={...state.support,token:null,ref:sm[1],ticket:null};return API.isAuthed()?'ticket':(state.next='account','signin');}
+  if(raw==='ticket') return state.support.token||state.support.ref?'ticket':'contact';
   const [v,q]=raw.split('?');
   const next=new URLSearchParams(q||'').get('next');
   if(next&&/^(checkout|account|quiz|shop|admin|routine|saved)$/.test(next)) state.next=next;
   if(v==='results') return state.profile?'results':'quiz';
   if(v==='reset') return state.resetToken?'reset':'forgot';
   if(v==='compare') return state.compare.length?'compare':'shop';
-  return ['home','quiz','shop','checkout','account','admin','privacy','signin','signup','forgot','routine','saved'].includes(v)?v:'home';
+  return ['home','quiz','shop','checkout','account','admin','privacy','signin','signup','forgot','routine','saved','journey','contact'].includes(v)?v:'home';
 }
 
 /* ---------- Cart ---------- */
@@ -64,6 +73,7 @@ function addToCart(id,silent,qty){
   const before=line?line.qty:0, after=Math.min(cap,before+add);
   if(after===before){ if(!silent) toast(`Only ${cap} of ${p.name} available`); return false; }
   if(line)line.qty=after; else state.cart.push({id,qty:after});
+  track('add_to_cart',{id});
   updateCartCount();
   if(!silent)toast(p.name+' added to bag');
   return true;
@@ -129,6 +139,9 @@ function renderDrawer(){
 /* ---------- Product modal ---------- */
 function openModal(id){
   const p=prod(id); if(!p) return;
+  if(state.modalId!==id){ rememberViewed(id); track('product_view',{id}); }
+  state.modalId=id;
+  const rt=RATINGS[p.id], pop=popularLabel(p);
   const w=whyFor(p.id), skip=isSkip(p.id);
   const why = w ? `<div class="why-badge ${skip?'skip':''}">${skip?'⚠︎ Probably not for you':'✦ For you'} — ${esc(w)}</div>`:'';
   const inCmp=state.compare.includes(p.id), saved=isWished(p.id);
@@ -139,6 +152,7 @@ function openModal(id){
       <div>
         <div class="cat">${esc(p.cat)} ${stockBadge(p)}</div>
         <h2>${esc(p.name)}</h2>
+        ${rt?starsHTML(rt.avg,rt.count):''}${pop?`<div class="pop-flag">${esc(pop)}</div>`:''}
         ${why}
         <p class="desc">${esc(p.desc)}</p>
         <div>${(p.ings||[]).map(i=>`<span class="ing-tag">${esc(i)}</span>`).join(' ')}</div>
@@ -157,8 +171,9 @@ function openModal(id){
       <button class="btn btn-ghost btn-sm" data-act="toggleCompare" data-arg="${esc(p.id)}" aria-pressed="${inCmp}">${inCmp?'✓ Comparing':'+ Compare'}</button>
       ${soldOut(p)?`<button class="btn btn-primary" style="flex:1" disabled>Sold out</button>`
         :`<button class="btn btn-primary" style="flex:1" data-act="addToCart" data-arg="${esc(p.id)}">Add to bag</button>`}
-    </div>`;
+    </div>
+    <div class="modal-reviews">${reviewsSectionHTML(p)}</div>`;
   $('#overlay').classList.add('open');
   enhanceTips($('#modal'));
 }
-function closeModal(){$('#overlay').classList.remove('open');}
+function closeModal(){$('#overlay').classList.remove('open');state.modalId=null;}

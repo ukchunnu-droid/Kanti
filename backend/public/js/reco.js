@@ -211,5 +211,6 @@ function updateProfileChip() {
     if (p) { c.innerHTML = `<span class="dosha-dot" style="background:${DOSHA[p.dosha].color}"></span>${esc(DOSHA[p.dosha].name)} · ${esc(SKIN_LABEL[p.skin])}`; }
   }
   if (r) r.classList.toggle('hidden', !p);
-  if (q) q.textContent = p ? 'Retake quiz' : 'Find your routine';
+  if (q) q.textContent = t(p ? 'Retake quiz' : 'Find your routine');
+  if (r) r.textContent = t('My routine');
 }

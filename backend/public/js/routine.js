@@ -30,7 +30,7 @@ function renderRoutine() {
   app.innerHTML = `<div class="wrap routine-page">
     <div class="section-head" style="margin-bottom:22px"><div class="eyebrow">My routine</div>
       <h2>Today, ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</h2>
-      <p>${esc(SKIN_LABEL[prof.skin])} skin · ${esc(DOSHA[prof.dosha].name)}-leaning. <button class="link-btn" data-go="results">See why each step was chosen</button></p></div>
+      <p>${esc(SKIN_LABEL[prof.skin])} skin · ${esc(DOSHA[prof.dosha].name)}-leaning. <button class="link-btn" data-go="results">See why each step was chosen</button>${API.isAuthed() ? ` · <button class="link-btn" data-go="journey">${t('Skin journey')}</button> · <button class="link-btn" data-act="openReminderSettings">Reminders in the app</button>` : ''}</p></div>
     ${streakHTML(prof)}
     <div class="rt-cols">
       <section class="acct-card"><h3>☀️ Morning</h3><ol class="rt-list">${list(am, 'AM')}</ol></section>

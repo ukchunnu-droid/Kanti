@@ -76,7 +76,7 @@ const email = `shopper${Date.now()}@example.com`;
 
 test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
   await t.test('shop is built from the product data', async () => {
-    await page.goto(B + '/#shop', { waitUntil: 'networkidle0' }); await splashGone();
+    await page.goto(B + '/#shop', { waitUntil: 'networkidle2' }); await splashGone();
     assert.equal(await count('.grid .card'), 13);
     assert.equal(await count('.grid .card .card-img svg.pa'), 13, 'every product has its illustrated bottle');
     const kinds = await page.$$eval('.grid .card svg.pa', (els) => [...new Set(els.map((e) => [...e.classList].find((c) => /^pa-(pump|mist|dropper|jar|tube)$/.test(c))))].sort());
@@ -176,7 +176,7 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
 
   await t.test('email confirmation link works', async () => {
     const token = lastMailTo(email, /Confirm/).html.match(/#verify=([a-f0-9]{64})/)[1];
-    await page.goto(B + '/#verify=' + token, { waitUntil: 'networkidle0' }); await splashGone();
+    await page.goto(B + '/#verify=' + token, { waitUntil: 'networkidle2' }); await splashGone();
     await page.waitForFunction(() => /Email confirmed/.test(document.body.innerText), { timeout: 8000 });
     assert.ok(!page.url().includes(token), 'token removed from the address bar');
     await page.evaluate(() => go('account'));
@@ -285,7 +285,7 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     // Half-finished quiz picks up where it left off after a reload.
     await page.evaluate(() => go('quiz'));
     for (let i = 0; i < 2; i++) { await page.click('.option'); await page.click('.quiz-nav .btn-primary'); await wait(40); }
-    await page.reload({ waitUntil: 'networkidle0' }); await splashGone();
+    await page.reload({ waitUntil: 'networkidle2' }); await splashGone();
     await page.evaluate(() => go('quiz'));
     assert.equal(await page.evaluate(() => state.qStep), 2);
     await click('.resume-note .link-btn', 'Start over');
@@ -312,6 +312,54 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     await click('.gp-head .link-btn', 'Clear');
 
     await click('.gp-head .icon-btn');
+  });
+
+  await t.test('home is live: today cards, bell, reviews, contact, devices', async () => {
+    await page.evaluate(() => go('home'));
+    assert.ok(await count('.today-card') >= 4, 'greeting, tip, season, weather');
+    assert.match(await text('.today-card.ritu h3'), /Shishira|Vasanta|Grishma|Varsha|Sharad|Hemanta/);
+    // the admin's order was shipped earlier → a notification arrived live
+    assert.equal(await page.$eval('#navBell', (e) => e.classList.contains('hidden')), false);
+    await page.click('#navBell');
+    await page.waitForSelector('.bp-item');
+    assert.match(await text('.bp-item b'), /shipped/i);
+    await page.click('#navBell');
+    // reviews in the product window
+    await page.evaluate(() => openModal('p1'));
+    await page.waitForSelector('#reviewsBox .btn');
+    await click('#reviewsBox .btn', 'Write a review');
+    await click('.star-pick button:nth-child(4)');
+    await page.type('#revBody', 'Gentle and clear, my skin feels calm.');
+    await click('#revBtn');
+    await page.waitForFunction(() => /waiting for approval/.test(document.getElementById('reviewsBox').textContent), { timeout: 8000 });
+    await page.evaluate(() => closeModal());
+    // contact form → ticket
+    await page.evaluate(() => go('contact'));
+    await page.type('#f_c_message', 'Can I use the toner twice a day?');
+    await click('#ticketBtn');
+    await page.waitForSelector('.acct-card.sent');
+    assert.match(await text('.acct-card.sent'), /KS-/);
+    // devices + preferences on the account page
+    await page.evaluate(() => { state.devices = null; go('account'); });
+    await page.waitForSelector('.device-row');
+    assert.match(await text('.device-row'), /This device/);
+    await page.waitForSelector('#prefsCard .seg button');
+  });
+
+  await t.test('inactivity: warning with countdown, "Stay signed in", then automatic sign-out', async () => {
+    assert.ok(await page.evaluate(() => API.isAuthed()));
+    await page.evaluate(() => { Idle.warn = 1; Idle.grace = 3; localStorage.setItem('kanti_act', String(Date.now() - 1500)); Idle.local = 0; });
+    await page.waitForSelector('#idleModal.open', { timeout: 5000 });
+    assert.match(await text('#idleText'), /signed out in/);
+    await page.click('#idleStayBtn');
+    assert.equal(await page.$eval('#idleModal', (e) => e.classList.contains('open')), false);
+    assert.ok(await page.evaluate(() => API.isAuthed()), 'still signed in');
+    await page.evaluate(() => { localStorage.setItem('kanti_act', String(Date.now() - 10000)); Idle.local = 0; });
+    await page.waitForSelector('#noticeModal.open', { timeout: 8000 });
+    assert.match(await text('#noticeTitle'), /inactivity/);
+    assert.equal(await page.evaluate(() => API.isAuthed()), false, 'signed out');
+    assert.equal(await page.evaluate(() => state.view), 'home');
+    await page.click('#noticeModal .btn-ghost');
   });
 
   await t.test('mobile width has no horizontal scroll; dark mode renders', async () => {

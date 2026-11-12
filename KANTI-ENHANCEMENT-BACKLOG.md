@@ -93,6 +93,20 @@ Live in `backend/` (not ported to the prototype). Tests: 44 API + 12 e2e checks.
 | A16 | "Why this routine works": fixed scientific + Ayurvedic reasons per step (`src/skin-science.js`) | ✅ |
 | A17 | Shop search falls back to “Beyond Kanti” (AI: closest Kanti products + outside links, options 1+2) | ✅ |
 | A18 | Ask Kanti finds products outside Kanti with a fit verdict for your skin + dosha; asks for the quiz first if no profile | ✅ |
+| C1 | Inactivity sign-out (5 min warning + 2 min countdown, server-enforced, all tabs in sync) | ✅ |
+| C2 | "Remember me" (30 days) vs browser-session sign-in | ✅ |
+| C3 | Devices & sessions list, sign out one/all others | ✅ |
+| C4 | Live sync across tabs/devices (SSE): bag, saved, routine, diary, orders, stock | ✅ |
+| C5 | Notification bell + device push notifications + reminders in your time zone | ✅ |
+| C6 | Home that changes: time-of-day greeting, ritucharya season, opt-in weather tips, daily tip | ✅ |
+| C7 | Continue where you left off + recently viewed; “New” and real “Popular” badges | ✅ |
+| C8 | Address book (default, used at checkout) | ✅ |
+| C9 | Email preferences + signed one-click unsubscribe (List-Unsubscribe) | ✅ |
+| C10 | Skin journey (quiz changes + diary chart with routine-change markers) — E6 | ✅ |
+| C11 | Reviews & ratings: moderation, verified purchase, filter by dosha — E9 | ✅ |
+| C12 | Profile photo; preferences: language (English/हिन्दी, site chrome) and °C/°F | ✅ |
+| C13 | Analytics dashboard: funnel, top searches, wanted-but-not-sold | ✅ |
+| C14 | Support inbox: contact form, tickets tied to orders, email replies, guest private links | ✅ |
 
 ## Priority next
 

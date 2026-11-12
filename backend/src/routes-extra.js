@@ -219,7 +219,7 @@ module.exports = function routes(app, { h, bad, tabOf, APP_URL, sha256, endSessi
     store.reviews.moderate(r.id, status);
     if (status === 'approved') {
       const p = db.getProduct(r.product_id);
-      notify.notify(r.user_id, { kind: 'review', title: 'Your review is live ⭐', body: `Thanks for reviewing ${p ? p.name : 'your product'}.`, link: '/#shop' });
+      notify.notify(r.user_id, { kind: 'review', title: 'Your review is live', body: `Thanks for reviewing ${p ? p.name : 'your product'}.`, link: '/#shop' });
       live.toAll('products', {});
     }
     res.json({ ok: true });

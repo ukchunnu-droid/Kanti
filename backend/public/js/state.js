@@ -63,8 +63,10 @@ function requireSignIn(view){
 // Session expired/revoked → back to sign-in.
 function handleAuthError(e,view){
   if(!e||e.status!==401) return false;
-  resetSession(); updateHeader();
-  toast('Please sign in again');
+  // Ended by inactivity / another device → sign out everywhere on this browser and explain why.
+  if(e.reason==='idle'||e.reason==='revoked'){ localSignOut(e.reason, e.message); return true; }
+  resetSession(); updateHeader(); stopIdle();
+  toast(e.message||'Please sign in again');
   state.next=view; go('signin');
   return true;
 }
@@ -89,6 +91,8 @@ async function afterSignIn(me){
   // 2. A quiz taken while signed out goes into the account's quiz history.
   await syncSkinProfile();
   // 3. Routine streak, saved products; the diary reloads for this account.
+  startIdle(); liveRestart(); broadcastSignIn(); loadNotifications();
+  state.devices=null;
   await syncRoutine();
   await syncWishlist();
   state.diary.entries=null; state.diary.form=null;
@@ -106,20 +110,23 @@ async function syncSkinProfile(){
 // Signing out forgets everything personal on this device: bag, quiz result, routine.
 async function signOut(){
   try{await API.logout();}catch(e){}
-  resetSession(); state.profile=null; state.cart=[]; routine=blankProgress();
+  stopIdle(); if(chan) chan.postMessage({type:'signout',reason:'manual'});
+  resetSession(); state.profile=null; state.cart=[]; routine=blankProgress(); state.devices=null;
   state.wish=[]; state.alerts=[]; state.diary={entries:null,tags:[],loading:false,form:null};
   state.reco={key:'',data:null,pending:null}; state.beyond={key:'',data:null,pending:null,error:null};
   state.guide.msgs=[]; if(state.guide.open) guideToggle();
   try{localStorage.removeItem('kanti_routine');localStorage.removeItem('kanti_wish');localStorage.removeItem('kanti_quiz');
       sessionStorage.removeItem('kanti_reco');sessionStorage.removeItem('kanti_guide');}catch(e){}
-  updateWishCount();
+  updateWishCount(); liveRestart(); resetNotifications();
   updateCartCount(false); updateHeader(); go('home'); toast('Signed out');
 }
 function updateHeader(){
   const a=API.isAuthed(), b=$('#navAccount'), i=$('#navAcctIcon'), adm=$('#navAdmin');
   if(b) b.textContent=a?'Account':'Sign in';
   if(adm) adm.classList.toggle('hidden',!(a&&session.user&&session.user.is_admin));
-  if(i){i.title=a?'My account':'Sign in';i.setAttribute('aria-label',i.title);}
+  if(i){i.title=a?'My account':'Sign in';i.setAttribute('aria-label',i.title); i.innerHTML=a&&session.user&&session.user.has_avatar?avatarHTML(30):'👤';}
+  if(b) b.textContent=t(a?'Account':'Sign in');
+  if(typeof updateBellVisibility==='function') updateBellVisibility();
 }
 function splitName(n){const parts=String(n||'').trim().split(/\s+/).filter(Boolean);return {first:parts[0]||'',last:parts.slice(1).join(' ')};}
 // Server order → the shape the confirmation/email views use (re-hydrates emoji/colour from the catalogue).

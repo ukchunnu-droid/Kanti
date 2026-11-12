@@ -541,8 +541,8 @@ app.patch('/api/admin/orders/:no', requireAdmin, (req, res) => {
   const customer = db.getUserById(r.order.user_id);
   if (customer) {
     email.queueOrderStatus(r.order, customer).catch(() => {});
-    const msg = { shipped: ['📦 Your order has shipped', r.order.tracking_no ? `Tracking: ${r.order.tracking_no}` : 'It’s on its way.'],
-      delivered: ['🌿 Your order was delivered', 'Enjoy! Tell us how it works for you with a quick review.'],
+    const msg = { shipped: ['Your order has shipped', r.order.tracking_no ? `Tracking: ${r.order.tracking_no}` : 'It’s on its way.'],
+      delivered: ['Your order was delivered', 'Enjoy! Tell us how it works for you with a quick review.'],
       cancelled: ['Your order was cancelled', 'Any stock has been returned. Questions? Contact support.'] }[status];
     if (msg) notify.notify(customer.id, { kind: 'order', title: `${msg[0]} · ${r.order.order_no}`, body: msg[1], link: '/#account' });
     if (status === 'delivered') email.queueReviewRequest(customer.email, customer.name, r.order.items).catch(() => {});

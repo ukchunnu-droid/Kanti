@@ -41,6 +41,9 @@ function renderPrivacy(){
         <li><b>Your skin quiz results</b> (skin type, dosha, goal, suggested ingredients) so your routine is ready next time.</li>
         <li><b>Your bag, routine checklist and streak,</b> so they follow you across devices.</li>
         <li><b>Your orders</b> and the emails we send about them.</li>
+        <li><b>Signed-in devices:</b> browser type, the first part of your network address and when each was last active — so you can see and sign out devices. Sessions end after inactivity.</li>
+        <li><b>Optional extras you add:</b> saved addresses, a profile photo, preferences, reminder times, skin-diary entries, reviews (shown with your first name and last initial), support messages and notification subscriptions.</li>
+        <li><b>Anonymous usage counts:</b> a random id in your browser and what you did (e.g. “started the quiz”, a search phrase) — first-party only, kept 180 days. “Do Not Track” turns it off.</li>
       </ul>
       <h3>What we don’t do</h3>
       <ul>
@@ -50,7 +53,9 @@ function renderPrivacy(){
       <h3>Who processes it</h3>
       <ul>
         <li>Quiz answers may be sent to Google’s Gemini AI to work out your skin profile (answers only — not your name or email).</li>
-        <li>Emails are sent through our email provider.</li>
+        <li>Emails are sent through our email provider; marketing emails always have a one-click unsubscribe.</li>
+        <li>Weather tips (only if you turn them on) send a location rounded to about 10 km to Open-Meteo, which needs no account.</li>
+        <li>Device alerts (only if you turn them on) are delivered through your browser’s push service.</li>
       </ul>
       <h3>Cookies</h3>
       <p>One essential cookie keeps you signed in, and a second one just tells the page you’re signed in. No tracking cookies.</p>
@@ -97,12 +102,14 @@ function renderAuth(view){
       <div class="field" data-f="password"><div class="field-label-row"><label for="f_password">Password</label>
         <button type="button" class="link-btn" data-go="forgot">Forgot password?</button></div>
         <input id="f_password" type="password" autocomplete="current-password" required><div class="field-err" id="e_password"></div></div>
+      <label class="remember"><input type="checkbox" id="f_remember"> Remember me for 30 days <small>(not on shared computers)</small></label>
       <button class="btn btn-primary btn-block" id="authBtn">Sign in</button>
       <p class="alt">New to Kanti? <button type="button" class="link-btn" data-go="signup">Create an account</button></p>`},
     signup:{title:'Create your account', sub:nextNote?nextNote.replace('Sign in','Create an account'):'Save your skin profile, routine, bag and orders.', body:`
       ${fieldHTML('name','Full name','','autocomplete="name" required')}
       ${fieldHTML('email','Email','','type="email" autocomplete="email" required')}
       ${fieldHTML('password','Password','','type="password" autocomplete="new-password" placeholder="At least 8 characters" required')}
+      <label class="remember"><input type="checkbox" id="f_remember"> Remember me for 30 days <small>(not on shared computers)</small></label>
       <button class="btn btn-primary btn-block" id="authBtn">Create account</button>
       <p class="alt">Already have an account? <button type="button" class="link-btn" data-go="signin">Sign in</button></p>`},
     forgot:{title:'Reset your password', sub:'Enter your account email and we’ll send you a link to choose a new password.', body:`
@@ -139,8 +146,9 @@ async function submitAuth(view){
         formMsg('If there’s an account for that email, a reset link is on its way. It expires in 1 hour.','ok');
         return;
       }
-      const me = view==='signin' ? await API.login({email,password:pw})
-               : view==='signup' ? await API.signup({name:fval('name'),email,password:pw})
+      const remember=!!(document.getElementById('f_remember')||{}).checked;
+      const me = view==='signin' ? await API.login({email,password:pw,remember})
+               : view==='signup' ? await API.signup({name:fval('name'),email,password:pw,remember})
                : await API.reset(state.resetToken,pw);
       state.resetToken=null;
       await afterSignIn(me);
@@ -158,6 +166,7 @@ function renderCheckout(){
     return;
   }
   if(!ensureSession('checkout')) return;
+  if(!state.acct.addresses) API.addresses().then(r=>{state.acct.addresses=r.addresses; if(state.view==='checkout'&&r.addresses.length>1) render();}).catch(()=>{});
   const sub=cartTotalCents(), ship=shippingCents(sub), total=sub+ship;
   const u=session.user, nm=splitName(u.name);
   const toFree=SHIPPING.free_over_cents-sub;
@@ -170,6 +179,8 @@ function renderCheckout(){
       <div>
         <div class="form-msg" id="formMsg" role="alert"></div>
         <h3 class="co-h3">Contact & shipping</h3>
+        ${(state.acct.addresses||[]).length>1?`<div class="field"><label for="coSaved">Saved addresses</label><select id="coSaved" data-change="useSavedAddress">
+          ${state.acct.addresses.map(a=>`<option value="${a.id}" ${a.is_default?'selected':''}>${esc(a.label||'Address')} — ${esc(a.address)}, ${esc(a.city||'')}</option>`).join('')}</select></div>`:''}
         <div class="field"><label>Email</label><input type="email" value="${esc(u.email)}" readonly autocomplete="email">
           <div class="field-hint">Your confirmation email goes to your account address.</div></div>
         <div class="field-row">
@@ -236,7 +247,8 @@ async function placeOrder(){
   await withBusy($('#placeBtn'),'Placing order…',async()=>{
     try{
       // Prices, shipping and totals are worked out by the server from the catalogue.
-      const {order}=await API.createOrder({items:state.cart.map(c=>({id:c.id,qty:c.qty})),ship_to,save_details:save});
+      const {order}=await API.createOrder({items:state.cart.map(c=>({id:c.id,qty:c.qty})),ship_to,save_details:save,anon_id:AID});
+      state.acct.addresses=null;
       if(save) Object.assign(session.user,ship_to);
       if(session.orders) session.orders.unshift(order);
       state.lastOrder=orderView(order);
@@ -374,7 +386,7 @@ function renderAccount(){
 
   const skinCard = prof ? `
     <div class="acct-card skin">
-      <div class="acct-card-head"><h3>Your skin profile</h3><button class="link-btn" data-act="viewSavedRoutine">View routine</button></div>
+      <div class="acct-card-head"><h3>Your skin profile</h3><span><button class="link-btn" data-go="journey">${t('Skin journey')}</button> · <button class="link-btn" data-act="viewSavedRoutine">View routine</button></span></div>
       <div class="skin-badges">
         <span class="skin-pill">${SKIN_LABEL[prof.skin]} skin</span>
         <span class="skin-pill dosha" style="--dc:${DOSHA[prof.dosha].color}">${DOSHA[prof.dosha].name}-leaning</span>
@@ -437,8 +449,11 @@ function renderAccount(){
 
   app.innerHTML=`<div class="wrap account">
     <div class="section-head" style="margin-bottom:26px"><div class="eyebrow">My account</div>
-      <h2>Hi${nm.first?', '+esc(nm.first):''} 👋</h2>
-      <p>Your Kanti details, skin profile and orders, all in one place.</p></div>
+      <div class="acct-hello">
+        <label class="avatar-edit" title="Change profile photo">${avatarHTML(64)}<input type="file" accept="image/*" data-change="avatarPick" aria-label="Upload a profile photo"><span>Edit</span></label>
+        <div><h2>Hi${nm.first?', '+esc(nm.first):''} 👋</h2>
+        <p>Your Kanti details, skin profile and orders, all in one place.${u.has_avatar?' <button class="link-btn" data-act="avatarRemove">Remove photo</button>':''}</p></div>
+      </div></div>
     ${verifyBannerHTML()}
     <div class="acct-grid">
       ${detailsCard}
@@ -446,7 +461,9 @@ function renderAccount(){
       ${securityCard}
     </div>
     ${ordersSection}
+    ${accountExtrasHTML()}
   </div>${footerHTML()}`;
+  if(state.acctSection){const el=document.getElementById(state.acctSection+'Card'); state.acctSection=null; if(el) setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'start'}),50);}
   if(form||ed){const i=app.querySelector('.inline-form input, form input:not([readonly])'); if(i) i.focus();}
 }
 async function saveProfileEdits(){
@@ -485,4 +502,12 @@ async function deleteAccount(){
       updateCartCount(false); updateHeader(); go('home'); toast('Your account has been deleted');
     }catch(e){ if(!handleAuthError(e,'account')) formMsg(e.message); }
   });
+}
+
+// Checkout: picking a saved address fills the shipping fields.
+function useSavedAddress(id){
+  const a=(state.acct.addresses||[]).find(x=>String(x.id)===String(id)); if(!a) return;
+  const set=(k,v)=>{const el=document.getElementById('f_'+k); if(el) el.value=v||'';};
+  if(a.name){const n=splitName(a.name); set('first',n.first); set('last',n.last);}
+  ['phone','address','address2','city','state','zip','country'].forEach(k=>set(k,a[k]));
 }

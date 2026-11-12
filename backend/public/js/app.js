@@ -35,7 +35,16 @@ const ACTIONS = {
   cancelEdit: () => { state.editProfile = false; render(); },
   toggleAcctForm: (f) => { state.acctForm = state.acctForm === f ? null : f; state.editProfile = false; render(); },
   reorder: (no) => reorder(no), openOrderEmail: (no) => openOrderEmail(no), cancelOrder, resendVerification,
+  // sessions, notifications
+  idleStay, idleSignOut, closeNotice, noticeSignIn, signOutDevice, signOutOthers,
+  toggleBell, openNote: (id) => openNote(id), readAllNotes, openReminderSettings, pushOn, pushOff, pushTest,
+  // home, account extras
+  weatherOn, weatherOff, avatarPick, avatarRemove, addrNew, addrEdit, addrCancel, addrSave: (id) => addrSave(id), addrDefault, addrDelete,
+  setLang, setTempUnit, setRemindersOn, setReminderTime, setDiaryNudge, setEmailPref, useSavedAddress,
+  // reviews, support
+  revFilter, revWrite, revCancel, revRate, revSignIn, revSubmit, sendTicket, contactAgain, openTicket, openGuestTicket, replyTicket, closeTicket,
   // admin
+  adminReviewFilter, adminModerate, adminAnalyticsDays, adminTicketFilter, adminOpenTicket, adminCloseTicketView, adminReplyTicket, adminTicketStatus, adminAnnounce,
   adminTab, adminEditProduct, adminCancelEdit, adminSaveProduct, adminToggleProduct, adminDeleteProduct,
   adminOrderFilter, adminSetStatus, adminBackup, adminRetryEmails, adminArtPreview, adminClearAiCache,
 };
@@ -68,7 +77,7 @@ document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('div[data-act]')) {
     e.preventDefault(); runAction(e.target.dataset.act, e.target.dataset.arg, e.target.dataset.arg2, e.target, e);
   }
-  if (e.key === 'Escape') { closeModal(); closeCart(); closeFilters(); if (state.guide.open) guideToggle(); }
+  if (e.key === 'Escape') { closeModal(); closeCart(); closeFilters(); closeNotice(); if (state.guide.open) guideToggle(); const bp = $('#bellPanel'); if (bp) bp.hidden = true; }
 });
 
 /* ---------- Opening blossom ----------
@@ -91,7 +100,7 @@ function hideSplash(now) {
   app.innerHTML=`<div class="checkout"><div class="empty-state"><div class="big">🌿</div><p>Loading…</p></div></div>`;
   try{
     const r=await API.products();
-    PRODUCTS=r.products; SHIPPING=r.shipping||SHIPPING;
+    PRODUCTS=r.products; SHIPPING=r.shipping||SHIPPING; RATINGS=r.ratings||{}; POPULAR=r.popular||{};
   }catch(e){
     app.innerHTML=`<div class="checkout"><div class="empty-state"><div class="big">⚠️</div>
       <p>Couldn’t load the shop — is the Kanti server running?</p>
@@ -99,8 +108,10 @@ function hideSplash(now) {
     hideSplash();
     return;
   }
+  applyPrefs();
   restoreState();
   restoreReco();
+  liveRestart();
   updateCartCount(false);
   syncWishlist();
   if(API.isAuthed()){
@@ -108,7 +119,8 @@ function hideSplash(now) {
     API.cart().then(r=>{setCartFromServer(r.items);if(state.view==='checkout')render();})
       .catch(e=>{if(e.status===401){resetSession();updateHeader();}});
     syncRoutine();
-    loadSession().then(updateHeader).catch(()=>{}); // shows the Admin link for the admin
+    loadSession().then(()=>{updateHeader();applyPrefs();}).catch(()=>{}); // shows the Admin link for the admin
+    startIdle(); loadNotifications();
   }
   go(viewFromHash());
   hideSplash();

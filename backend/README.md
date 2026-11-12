@@ -49,6 +49,10 @@ Then edit `.env`:
   Password>` (needs 2-Step Verification), `MAIL_FROM=Kanti <you@gmail.com>`. Check it with
   `npm run test-email`.
 - **`APP_URL`, `NODE_ENV`, `TRUST_PROXY`** — only matter when you deploy (see below).
+- **Sessions** *(optional)*: `SESSION_IDLE_WARN_S` (default 300 = warn after 5 min idle), `SESSION_IDLE_GRACE_S`
+  (default 120 = signed out 2 min later). "Remember me" keeps a session 30 days; otherwise until the browser closes (max 12 h).
+- **Push** *(optional)*: `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`. If unset, keys are generated once and kept in the database.
+- **`POPULAR_MIN_BUYERS`** (default 2): buyers needed in 7 days before a "Popular" badge shows (real orders only).
 
 > 🔐 Never commit `.env` or put keys in `public/` (that folder is sent to the browser).
 
@@ -101,7 +105,9 @@ see it in **Account**, with the confirmation email link, reorder, quiz history a
 `order_items` (prices snapshotted in cents; status `placed → shipped → delivered`, or
 `cancelled`, which restocks; tracking number) · `quiz_results` · `cart_items` · `routine_progress`
 · `email_outbox` · `email_verifications` / `password_resets` (only hashes of one-time tokens) ·
-`app_meta` (e.g. last backup time) · `ai_cache` · `wishlist_items` · `stock_alerts` (one-time
+`app_meta` (e.g. last backup time, VAPID keys) · `sessions` (one row per signed-in browser) · `notifications` +
+`notify_log` + `push_subscriptions` · `addresses` · `email_optouts` · `reviews` · `events` (anonymous analytics) ·
+`tickets` + `ticket_messages` · `ai_cache` · `wishlist_items` · `stock_alerts` (one-time
 back-in-stock emails) · `skin_diary` (one entry per user per day). Schema changes are migrations in `src/db.js` (append only).
 
 ### API
@@ -152,12 +158,30 @@ GET    /api/diary | PUT /api/diary/:YYYY-MM-DD { rating 1–5, tags, note } | DE
 POST   /api/orders        { items:[{id,qty}], ship_to:{name,address,city,zip,…}, save_details }
 GET    /api/orders | GET /api/orders/:order_no | POST /api/orders/:order_no/cancel   (until shipped)
 
+GET    /api/session | POST /api/session/ping { active }        (inactivity: tabs report every ~30s)
+GET    /api/me/sessions | DELETE /api/me/sessions/:id | POST /api/me/sessions/sign-out-others
+GET    /api/live?tab=…                                          (Server-Sent Events: cart, wishlist, routine, diary,
+                                                                 orders, products, notification, prefs, session)
+GET    /api/notifications | POST /api/notifications/read { id? } | POST /api/push/subscribe|unsubscribe|test
+GET/POST /api/me/addresses | PATCH/DELETE /api/me/addresses/:id | POST /api/me/addresses/:id/default
+GET/PUT /api/me/email-prefs | GET+POST /api/email/unsubscribe?e&c&t  (signed one-click link in marketing emails)
+PATCH  /api/me/prefs { lang, temp_unit, tz, reminders:{enabled,am,pm}, diary_nudge } | GET/PUT/DELETE /api/me/avatar
+GET    /api/weather?lat&lon                                     (opt-in; rounded; Open-Meteo)
+GET/POST /api/products/:id/reviews                               (POST → pending until approved)
+POST   /api/track { anon_id, events:[{name, props}] }           (first-party anonymous analytics)
+POST   /api/support/tickets | GET /api/support/tickets[/:ref] | POST /api/support/tickets/:ref/messages
+GET/POST /api/support/access/:token[/messages]                   (guests, via the private emailed link)
+
 # admin (ADMIN_EMAIL only)
 GET    /api/admin/stats
 GET    /api/admin/products | POST /api/admin/products | PATCH/DELETE /api/admin/products/:id
 GET    /api/admin/orders?status= | PATCH /api/admin/orders/:order_no { status, tracking_no }
 GET    /api/admin/emails | POST /api/admin/emails/retry | POST /api/admin/backup
 POST   /api/admin/ai-cache/clear
+GET    /api/admin/reviews?status= | PATCH /api/admin/reviews/:id { status }
+GET    /api/admin/analytics?days=7|30|90
+GET    /api/admin/tickets?status= | GET /api/admin/tickets/:ref | POST …/:ref/reply { message, close } | PATCH …/:ref { status }
+POST   /api/admin/products/:id/announce                          (email opted-in customers + bell notification)
 ```
 
 Stock is taken inside the order's database transaction, so two people can never buy the last

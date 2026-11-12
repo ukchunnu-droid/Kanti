@@ -85,4 +85,9 @@ The real app is **`backend/public/index.html`** (storefront) + **`backend/public
 - **Done (A13–A16):** logo + opening bloom; quiz "All of the above"/"Other"; before/after illustration
   (`js/skinsim.js`); reasons from `src/skin-science.js` — keep those hand-written (no AI, no invented
   stats/studies), and add an entry for any new ingredient.
-- **Next:** E6, E7 (seasonal), E9 (reviews), E10; payments deliberately skipped.
+- **Done (C1–C14, 2026-11-12):** DB sessions (idle sign-out, remember me, devices), live SSE updates,
+  notifications + push, home "today" cards (ritucharya, weather), address book, email prefs/unsubscribe,
+  skin journey, reviews, profile photo + EN/HI, analytics, support inbox. Server: `src/store.js`,
+  `auth.js`, `live.js`, `notify.js`, `routes-extra.js`. Frontend: `js/session.js`, `live.js`, `daily.js`,
+  `profile.js`, `reviews.js`, `analytics.js`, `support.js`, `public/sw.js`. E2E waits use networkidle2 (SSE stays open).
+- **Next:** Google/Apple sign-in (needs OAuth credentials / Apple Developer account), E10; payments deliberately skipped.
