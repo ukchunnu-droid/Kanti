@@ -42,7 +42,8 @@ if (process.env.SENTRY_DSN) {
 }
 
 const app = express();
-if (process.env.TRUST_PROXY) app.set('trust proxy', 1); // behind Render/Railway etc. → real client IPs
+// TRUST_PROXY = how many proxies sit in front (1 for Render alone, 2 when Netlify forwards to Render).
+if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PROXY) || 1); // behind Render/Railway etc. → real client IPs
 app.disable('x-powered-by');
 
 // ---------- Request id + access log ----------

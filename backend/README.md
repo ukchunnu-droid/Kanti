@@ -214,6 +214,10 @@ sign-in), reminder times, the compare tray and the Ask Kanti conversation (`sess
   backups live there). It has a health check on `/api/health`.
 - **Render:** `render.yaml` at the repo root is a one-click Blueprint (Docker + 1 GB persistent
   disk + HTTPS). Fill in `APP_URL`, `ADMIN_EMAIL`, SMTP and Gemini values in the dashboard.
+- **Netlify address (optional):** Netlify can't run the server (it needs a long-running process and
+  a database file), so `netlify.toml` makes Netlify serve `backend/public` and pass `/api/*` through
+  to the Render server. In Netlify set `BACKEND_URL=https://<your-app>.onrender.com`; on Render set
+  `APP_URL=https://<your-site>.netlify.app` (email links) and `TRUST_PROXY=2`.
 - Production needs `NODE_ENV=production`, `APP_URL=https://your-domain` (the server refuses to start
   without it), `TRUST_PROXY=1`, a real `JWT_SECRET` — set in the host's dashboard, never in code.
 - SQLite on a persistent disk is fine for a store this size. Move `src/db.js` to Postgres only if
