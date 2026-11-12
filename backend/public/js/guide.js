@@ -25,18 +25,18 @@ function renderGuide() {
   const last = g.msgs[g.msgs.length - 1];
   const chips = !g.busy ? (g.msgs.length ? ((last && last.followups) || []) : guideStarters()) : [];
   panel.innerHTML = `
-    <div class="gp-head"><div><b>Ask Kanti</b><small>${state.profile ? `Knows your ${esc(DOSHA[state.profile.dosha].name)} · ${esc(SKIN_LABEL[state.profile.skin].toLowerCase())} profile` : 'Ayurvedic skincare guide'}</small></div>
+    <div class="gp-head"><div class="gp-id"><svg class="gp-avatar lg" aria-hidden="true"><use href="#kanti-mark"/></svg><div><b>Ask Kanti</b><small>${state.profile ? `Knows your ${esc(DOSHA[state.profile.dosha].name)} · ${esc(SKIN_LABEL[state.profile.skin].toLowerCase())} profile` : 'Ayurvedic skincare guide'}</small></div></div>
       <div>${g.msgs.length ? '<button class="link-btn" data-act="guideClear">Clear</button>' : ''}<button class="icon-btn" data-act="guideToggle" aria-label="Close">✕</button></div></div>
     <div class="gp-body" id="guideBody" aria-live="polite">
-      ${g.msgs.length ? '' : `<div class="gp-msg guide"><p>Namaste 🌿 Ask me about ingredients, your dosha, or which Kanti products suit you.</p></div>`}
-      ${g.msgs.map((m) => `<div class="gp-msg ${m.role}"><p>${esc(m.text).replace(/\n/g, '<br>')}</p>
+      ${g.msgs.length ? '' : `<div class="gp-msg guide"><svg class="gp-avatar" aria-hidden="true"><use href="#kanti-mark"/></svg><p>Namaste 🌿 Ask me about ingredients, your dosha, or which Kanti products suit you.</p></div>`}
+      ${g.msgs.map((m) => `<div class="gp-msg ${m.role}">${m.role === 'guide' ? '<svg class="gp-avatar" aria-hidden="true"><use href="#kanti-mark"/></svg>' : ''}<p>${esc(m.text).replace(/\n/g, '<br>')}</p>
         ${(m.products || []).filter((id) => prod(id)).map((id) => { const p = prod(id); return `<div class="gp-prod">
           <span class="thumb sm" style="background:${esc(p.bg)}">${productArt(p, 'thumb')}</span>
           <span><b>${esc(p.name)}</b><small>${money(p.price)}</small></span>
           <button class="link-btn" data-act="openModal" data-arg="${esc(p.id)}">View</button>
           <button class="btn btn-primary btn-sm" data-act="addToCart" data-arg="${esc(p.id)}" ${soldOut(p) ? 'disabled' : ''}>Add</button></div>`; }).join('')}
       </div>`).join('')}
-      ${g.busy ? '<div class="gp-msg guide typing"><span></span><span></span><span></span></div>' : ''}
+      ${g.busy ? '<div class="gp-msg guide"><svg class="gp-avatar" aria-hidden="true"><use href="#kanti-mark"/></svg><div class="typing"><span></span><span></span><span></span></div></div>' : ''}
     </div>
     ${chips.length ? `<div class="gp-chips">${chips.map((c) => `<button class="pill" data-act="guideAsk" data-arg="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
     <form class="gp-form" data-submit="guideSend" novalidate>

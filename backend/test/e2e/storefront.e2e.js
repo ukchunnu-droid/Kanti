@@ -64,6 +64,8 @@ async function fill(id, v) {
   await page.type('#f_' + id, String(v));
 }
 const text = (sel) => page.$eval(sel, (e) => e.textContent.trim());
+// The opening blossom covers the page for ~2s; wait for it before clicking.
+const splashGone = () => page.waitForFunction(() => !document.getElementById('splash'), { timeout: 10000 });
 const count = (sel) => page.$$eval(sel, (els) => els.length);
 const lastMailTo = (to, re) => {
   const { outbox } = require('../../src/email');
@@ -74,7 +76,7 @@ const email = `shopper${Date.now()}@example.com`;
 
 test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
   await t.test('shop is built from the product data', async () => {
-    await page.goto(B + '/#shop', { waitUntil: 'networkidle0' });
+    await page.goto(B + '/#shop', { waitUntil: 'networkidle0' }); await splashGone();
     assert.equal(await count('.grid .card'), 13);
     assert.equal(await count('.grid .card .card-img svg.pa'), 13, 'every product has its illustrated bottle');
     const kinds = await page.$$eval('.grid .card svg.pa', (els) => [...new Set(els.map((e) => [...e.classList].find((c) => /^pa-(pump|mist|dropper|jar|tube)$/.test(c))))].sort());
@@ -163,7 +165,7 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
 
   await t.test('email confirmation link works', async () => {
     const token = lastMailTo(email, /Confirm/).html.match(/#verify=([a-f0-9]{64})/)[1];
-    await page.goto(B + '/#verify=' + token, { waitUntil: 'networkidle0' });
+    await page.goto(B + '/#verify=' + token, { waitUntil: 'networkidle0' }); await splashGone();
     await page.waitForFunction(() => /Email confirmed/.test(document.body.innerText), { timeout: 8000 });
     assert.ok(!page.url().includes(token), 'token removed from the address bar');
     await page.evaluate(() => go('account'));
@@ -272,7 +274,7 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     // Half-finished quiz picks up where it left off after a reload.
     await page.evaluate(() => go('quiz'));
     for (let i = 0; i < 2; i++) { await page.click('.option'); await page.click('.quiz-nav .btn-primary'); await wait(40); }
-    await page.reload({ waitUntil: 'networkidle0' });
+    await page.reload({ waitUntil: 'networkidle0' }); await splashGone();
     await page.evaluate(() => go('quiz'));
     assert.equal(await page.evaluate(() => state.qStep), 2);
     await click('.resume-note .link-btn', 'Start over');

@@ -49,6 +49,10 @@ The real app is **`backend/public/index.html`** (storefront) + **`backend/public
 ## Design conventions (don't drift)
 - **Palette:** neem-green `#20453B` (brand), turmeric-gold `#B8862B`/`#C9972F` (accent),
   paper `#FAF8F3`, ink `#1C241F`. Dosha colors: Vata `#6E74AE`, Pitta `#C2663A`, Kapha `#4C7A4E`.
+- **Logo:** the gold blossom on a neem-green tile. Source PNG `backend/public/img/kanti-logo.png`;
+  vector copy `img/kanti-mark.svg` and an inline `<symbol id="kanti-mark">` in `index.html` (use it
+  with `<svg><use href="#kanti-mark"/></svg>`). The opening splash in `index.html` animates its
+  petals (CSS `.b-petal`), and `hideSplash()` in `js/app.js` removes it. Don't reuse keyframe names.
 - **Fonts:** prototype uses Fraunces (display) + Hanken Grotesk (UI). Deck uses Cambria + Calibri.
 - **Deliberately avoid** the generic "wellness beige + terracotta + serif" look.
 - Prototype must stay **one self-contained file** unless we deliberately move it into `backend/public/`.

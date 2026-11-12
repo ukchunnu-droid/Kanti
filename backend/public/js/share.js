@@ -65,7 +65,7 @@ function copyShareText(){
 
 function footerHTML(){
   return `<footer><div class="wrap">
-    <div class="brand">Kan<span style="color:var(--gold)">ti</span></div>
+    <div class="brand"><svg class="brand-mark" aria-hidden="true"><use href="#kanti-mark"/></svg>Kan<span style="color:var(--gold)">ti</span></div>
     <small>Ayurvedic skincare that fits your nature · Student project · <button class="link-btn footer-link" data-go="privacy">Privacy</button></small>
   </div></footer>`;
 }

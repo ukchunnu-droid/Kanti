@@ -4,17 +4,30 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Kanti — Ayurvedic skincare that fits your nature</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2320453B'/%3E%3Ctext x='16' y='22' font-family='Georgia' font-size='17' text-anchor='middle' fill='%23C9972F'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="/img/kanti-mark.svg" type="image/svg+xml">
+<link rel="icon" href="/img/favicon-64.png" type="image/png" sizes="64x64">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<meta name="theme-color" content="#1B3D33">
+<meta property="og:image" content="/img/kanti-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/kanti.css">
 </head>
-<body>
+<body class="splashing">
+<!-- Opening animation: the Kanti blossom opens, then the site fades in (js/app.js removes it). -->
+<div id="splash" class="splash" aria-hidden="true" data-act="skipSplash" title="Skip">
+  <div class="splash-inner">
+    <svg class="bloom" viewBox="0 0 512 512"><defs><radialGradient id="ksg" cx="50%" cy="42%" r="62%"><stop offset="0" stop-color="#2D5E4C"/><stop offset="1" stop-color="#183A30"/></radialGradient></defs><g class="b-tile"><rect width="512" height="512" rx="112" fill="url(#ksg)"/><rect x="22" y="22" width="468" height="468" rx="94" fill="none" stroke="#9C8A45" stroke-opacity=".45" stroke-width="2"/></g><g class="b-petal long" style="--i:0"><path transform="translate(256 256) rotate(0)" d="M0,-186 C8.8,-164 16,-128 0,-86 C-16,-128 -8.8,-164 0,-186Z" fill="#E9C266"/></g><g class="b-petal short" style="--i:8"><path transform="translate(256 256) rotate(30)" d="M0,-154 C3.3,-141.7 6,-121.5 0,-98 C-16,-121.5 -8.8,-141.7 0,-154Z" fill="#D8B261"/></g><g class="b-petal long" style="--i:4"><path transform="translate(256 256) rotate(60)" d="M0,-192 C17.6,-167.4 32,-127 0,-80 C-11,-127 -6.1,-167.4 0,-192Z" fill="#E9C266"/></g><g class="b-petal short" style="--i:2"><path transform="translate(256 256) rotate(90)" d="M0,-150 C6.6,-135.5 12,-111.7 0,-84 C-12,-111.7 -6.6,-135.5 0,-150Z" fill="#D8B261"/></g><g class="b-petal long" style="--i:6"><path transform="translate(256 256) rotate(120)" d="M0,-192 C6.1,-167.4 11,-127 0,-80 C-32,-127 -17.6,-167.4 0,-192Z" fill="#E9C266"/></g><g class="b-petal short" style="--i:10"><path transform="translate(256 256) rotate(150)" d="M0,-154 C8.8,-141.7 16,-121.5 0,-98 C-6,-121.5 -3.3,-141.7 0,-154Z" fill="#D8B261"/></g><g class="b-petal long" style="--i:1"><path transform="translate(256 256) rotate(180)" d="M0,-186 C8.8,-164 16,-128 0,-86 C-16,-128 -8.8,-164 0,-186Z" fill="#E9C266"/></g><g class="b-petal short" style="--i:9"><path transform="translate(256 256) rotate(210)" d="M0,-154 C3.3,-141.7 6,-121.5 0,-98 C-16,-121.5 -8.8,-141.7 0,-154Z" fill="#D8B261"/></g><g class="b-petal long" style="--i:5"><path transform="translate(256 256) rotate(240)" d="M0,-192 C17.6,-167.4 32,-127 0,-80 C-11,-127 -6.1,-167.4 0,-192Z" fill="#E9C266"/></g><g class="b-petal short" style="--i:3"><path transform="translate(256 256) rotate(270)" d="M0,-150 C6.6,-135.5 12,-111.7 0,-84 C-12,-111.7 -6.6,-135.5 0,-150Z" fill="#D8B261"/></g><g class="b-petal long" style="--i:7"><path transform="translate(256 256) rotate(300)" d="M0,-192 C6.1,-167.4 11,-127 0,-80 C-32,-127 -17.6,-167.4 0,-192Z" fill="#E9C266"/></g><g class="b-petal short" style="--i:11"><path transform="translate(256 256) rotate(330)" d="M0,-154 C8.8,-141.7 16,-121.5 0,-98 C-6,-121.5 -3.3,-141.7 0,-154Z" fill="#D8B261"/></g><g class="b-centre"><circle cx="256" cy="256" r="46" fill="#15322A"/><circle cx="256" cy="256" r="33" fill="#D6AA45"/><circle cx="256" cy="256" r="11" fill="#15322A"/></g></svg>
+    <div class="splash-word">Kan<span>ti</span></div>
+    <div class="splash-tag">Skincare that fits your nature</div>
+  </div>
+</div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><radialGradient id="kmg" cx="50%" cy="42%" r="62%"><stop offset="0" stop-color="#2D5E4C"/><stop offset="1" stop-color="#183A30"/></radialGradient></defs><symbol id="kanti-mark" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="url(#kmg)"/><rect x="22" y="22" width="468" height="468" rx="94" fill="none" stroke="#9C8A45" stroke-opacity=".45" stroke-width="2"/><path transform="translate(256 256) rotate(0)" d="M0,-186 C8.8,-164 16,-128 0,-86 C-16,-128 -8.8,-164 0,-186Z" fill="#E9C266"/><path transform="translate(256 256) rotate(30)" d="M0,-154 C3.3,-141.7 6,-121.5 0,-98 C-16,-121.5 -8.8,-141.7 0,-154Z" fill="#D8B261"/><path transform="translate(256 256) rotate(60)" d="M0,-192 C17.6,-167.4 32,-127 0,-80 C-11,-127 -6.1,-167.4 0,-192Z" fill="#E9C266"/><path transform="translate(256 256) rotate(90)" d="M0,-150 C6.6,-135.5 12,-111.7 0,-84 C-12,-111.7 -6.6,-135.5 0,-150Z" fill="#D8B261"/><path transform="translate(256 256) rotate(120)" d="M0,-192 C6.1,-167.4 11,-127 0,-80 C-32,-127 -17.6,-167.4 0,-192Z" fill="#E9C266"/><path transform="translate(256 256) rotate(150)" d="M0,-154 C8.8,-141.7 16,-121.5 0,-98 C-6,-121.5 -3.3,-141.7 0,-154Z" fill="#D8B261"/><path transform="translate(256 256) rotate(180)" d="M0,-186 C8.8,-164 16,-128 0,-86 C-16,-128 -8.8,-164 0,-186Z" fill="#E9C266"/><path transform="translate(256 256) rotate(210)" d="M0,-154 C3.3,-141.7 6,-121.5 0,-98 C-16,-121.5 -8.8,-141.7 0,-154Z" fill="#D8B261"/><path transform="translate(256 256) rotate(240)" d="M0,-192 C17.6,-167.4 32,-127 0,-80 C-11,-127 -6.1,-167.4 0,-192Z" fill="#E9C266"/><path transform="translate(256 256) rotate(270)" d="M0,-150 C6.6,-135.5 12,-111.7 0,-84 C-12,-111.7 -6.6,-135.5 0,-150Z" fill="#D8B261"/><path transform="translate(256 256) rotate(300)" d="M0,-192 C6.1,-167.4 11,-127 0,-80 C-32,-127 -17.6,-167.4 0,-192Z" fill="#E9C266"/><path transform="translate(256 256) rotate(330)" d="M0,-154 C8.8,-141.7 16,-121.5 0,-98 C-6,-121.5 -3.3,-141.7 0,-154Z" fill="#D8B261"/><circle cx="256" cy="256" r="46" fill="#15322A"/><circle cx="256" cy="256" r="33" fill="#D6AA45"/><circle cx="256" cy="256" r="11" fill="#15322A"/></symbol></svg>
 
 <header>
   <div class="wrap nav">
-    <div class="brand" data-go="home">Kan<span>ti</span></div>
+    <div class="brand" data-go="home"><svg class="brand-mark" aria-hidden="true"><use href="#kanti-mark"/></svg>Kan<span>ti</span></div>
     <nav class="nav-links">
       <button data-go="home">Home</button>
       <button data-go="quiz" id="navQuiz">Find your routine</button>
@@ -57,7 +70,7 @@
 <div class="compare-bar" id="compareBar" aria-live="polite"></div>
 
 <!-- Ask Kanti (chat) -->
-<button class="guide-fab" id="guideFab" data-act="guideToggle" aria-controls="guidePanel" aria-expanded="false">✦ Ask Kanti</button>
+<button class="guide-fab" id="guideFab" data-act="guideToggle" aria-controls="guidePanel" aria-expanded="false"><svg class="fab-mark" aria-hidden="true"><use href="#kanti-mark"/></svg>Ask Kanti</button>
 <section class="guide-panel" id="guidePanel" aria-label="Ask Kanti — skincare guide" hidden></section>
 
 <div class="toast" id="toast"></div>

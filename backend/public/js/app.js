@@ -9,7 +9,7 @@
      data-input / data-change="name"    → ACTIONS.name(value, null, element, event) */
 const ACTIONS = {
   // navigation & chrome
-  openCart, closeCart, toggleTheme, closeModal, reload: () => location.reload(), render: () => render(),
+  openCart, closeCart, toggleTheme, skipSplash: () => hideSplash(true), closeModal, reload: () => location.reload(), render: () => render(),
   openModal: (id) => openModal(id),
   flip: (_a, _b, el) => el.classList.toggle('flipped'),
   // quiz & routine
@@ -71,6 +71,19 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { closeModal(); closeCart(); closeFilters(); if (state.guide.open) guideToggle(); }
 });
 
+/* ---------- Opening blossom ----------
+   The splash in index.html plays while the shop loads. It stays at least until the blossom has
+   opened (~1.7s from page load; 0.3s with reduced motion), then fades away. Click skips it. */
+function hideSplash(now) {
+  const s = document.getElementById('splash'); if (!s || s.classList.contains('done')) return;
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const wait = now ? 0 : Math.max(0, (reduce ? 300 : 1700) - performance.now());
+  setTimeout(() => {
+    s.classList.add('done'); document.body.classList.remove('splashing');
+    setTimeout(() => s.remove(), 600);
+  }, wait);
+}
+
 /* ---------- Boot ---------- */
 (async function boot(){
   try{ localStorage.removeItem('kanti_token'); }catch(e){} // tokens are no longer kept in page storage
@@ -83,6 +96,7 @@ document.addEventListener('keydown', (e) => {
     app.innerHTML=`<div class="checkout"><div class="empty-state"><div class="big">⚠️</div>
       <p>Couldn’t load the shop — is the Kanti server running?</p>
       <button class="btn btn-primary btn-sm" style="margin-top:14px" data-act="reload">Try again</button></div></div>`;
+    hideSplash();
     return;
   }
   restoreState();
@@ -97,5 +111,6 @@ document.addEventListener('keydown', (e) => {
     loadSession().then(updateHeader).catch(()=>{}); // shows the Admin link for the admin
   }
   go(viewFromHash());
+  hideSplash();
   window.addEventListener('hashchange',()=>{const v=viewFromHash(); if(v!==state.view) go(v);});
 })();

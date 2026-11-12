@@ -773,3 +773,59 @@ body.has-compare #app{padding-bottom:84px}
   .profile-chip{padding:11px}
   .cmp-toggle{font-size:11.5px;padding:4px 2px}
 }
+
+/* ===================== Logo + opening blossom ===================== */
+.brand{display:inline-flex;align-items:center;gap:9px}
+.brand-mark{width:34px;height:34px;flex:none;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+footer .brand-mark{width:30px;height:30px}
+
+.splash{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;cursor:pointer;
+  background:radial-gradient(circle at 50% 44%,#24503F 0%,#16332A 55%,#0F241D 100%);
+  transition:opacity .55s ease,visibility .55s;
+  animation:splash-failsafe 0s 7s forwards} /* hides itself even if scripts never run */
+@keyframes splash-failsafe{to{opacity:0;visibility:hidden}}
+.splash.done{opacity:0;visibility:hidden}
+.splash-inner{display:flex;flex-direction:column;align-items:center;transition:transform .55s ease}
+.splash.done .splash-inner{transform:scale(1.08)}
+.bloom{width:min(190px,46vw);height:auto;overflow:visible;filter:drop-shadow(0 22px 40px rgba(0,0,0,.4));
+  animation:bloom-breathe 2.6s ease-in-out 1.5s infinite}
+@keyframes bloom-breathe{50%{transform:scale(1.035)}}
+.bloom g{transform-box:view-box;transform-origin:256px 256px}
+.b-tile{animation:tile-in .5s cubic-bezier(.2,.9,.3,1.15) both}
+@keyframes tile-in{from{transform:scale(.55);opacity:0}}
+.b-centre{animation:centre-in .5s cubic-bezier(.3,1.8,.5,1) .3s both}
+@keyframes centre-in{from{transform:scale(0)}}
+/* Each petal unfurls from the centre with a little twist, one after another. */
+.b-petal{animation:petal-in .6s cubic-bezier(.25,1.45,.45,1) both;animation-delay:calc(.42s + var(--i) * 45ms)}
+.b-petal.short{animation-duration:.5s}
+@keyframes petal-in{from{transform:scale(0) rotate(-40deg);opacity:0}55%{opacity:1}}
+.splash-word{font-family:var(--font-display);font-size:42px;font-weight:600;color:#F4F1E8;margin-top:22px;letter-spacing:-.01em;
+  animation:splash-rise .6s ease 1.05s both}
+.splash-word span{color:#E0B964}
+.splash-tag{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#B9C8BE;margin-top:6px;animation:splash-rise .6s ease 1.2s both}
+@keyframes splash-rise{from{opacity:0;transform:translateY(10px)}}
+body.splashing{overflow:hidden}
+/* The home hero waits behind the blossom, then rises in as it fades. */
+body.splashing .hero-eyebrow,body.splashing .hero h1,body.splashing .hero p,body.splashing .hero-cta{animation-play-state:paused}
+@media (prefers-reduced-motion:reduce){
+  .splash *{animation:none !important}
+  .splash{transition-duration:.25s}
+}
+
+/* Ask Kanti uses the logo */
+.guide-fab{display:inline-flex;align-items:center;gap:9px;padding:9px 18px 9px 9px}
+.fab-mark{width:30px;height:30px;border-radius:8px;flex:none}
+.gp-id{display:flex;align-items:center;gap:10px}
+.gp-avatar{width:24px;height:24px;border-radius:6px;flex:none}
+.gp-avatar.lg{width:34px;height:34px;border-radius:9px;box-shadow:0 0 0 1.5px rgba(224,185,100,.45)}
+.gp-msg.guide{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:8px;align-items:end;max-width:92%}
+.gp-msg.guide>*:not(.gp-avatar){grid-column:2}
+.gp-msg.guide>.gp-avatar{grid-row:1;align-self:end}
+.gp-msg.guide .typing{background:var(--surface-2)}
+.brand{gap:0}
+.brand-mark{margin-right:10px}
+@media (max-width:540px){
+  .brand{font-size:22px}
+  .brand-mark{width:30px;height:30px;margin-right:7px}
+  .cart-btn{padding:7px 10px;gap:5px;font-size:14px}
+}
