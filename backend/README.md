@@ -91,6 +91,7 @@ see it in **Account**, with the confirmation email link, reorder, quiz history a
 | Logging | `src/log.js` | JSON lines in production; every response has an `X-Request-Id`, quoted in error messages. Optional Sentry via `SENTRY_DSN`. |
 | AI quiz | `src/ai.js` | Gemini when a key is set, otherwise rule-based. Answers are sanitised first. Shared helpers: `geminiJSON` (model chain + timeouts), `geminiSearch` (Google Search grounding over REST). |
 | AI routine, Beyond Kanti, chat | `src/recommend.js` | Builds the routine from the live catalogue. Every AI answer is cleaned: unknown product ids dropped, wrong slots fixed, gaps filled from rules, text capped. Results cached in `ai_cache` (routine 3 days, outside products 7 days; the key includes the catalogue version, so product edits refresh it). |
+| Reasons + before/after | `src/skin-science.js` | Fixed, hand-written scientific and Ayurvedic notes per ingredient and step (never AI-written, no invented numbers or studies), the dosha principle, and illustrative 1–9 scores for six skin measures, today vs week 8. Returned as `science` on `/api/recommend`. Add an entry when you add an ingredient (a test checks coverage). |
 | Outside links | `src/links.js` | Retailer **search links** (always work) + **product pages** only after a check: https, approved retailer (every redirect hop too), page opens and its title names the product. |
 | Tests | `test/api.test.js`, `test/e2e/` | `npm test`, `npm run test:e2e`; both run on GitHub Actions (`.github/workflows/ci.yml`). |
 
@@ -133,7 +134,8 @@ GET    /api/quiz/history
 GET    /api/routine | PUT /api/routine { date, done, streak, lastComplete }
 
 POST   /api/recommend         { profile:{skin,dosha,concern,lookFor,avoid} }
-       → { summary, am:[{id,slot,why}], pm, weekly, addons, skip, why:{id:text}, tips, change, source }
+       → { summary, am:[{id,slot,why}], pm, weekly, addons, skip, why:{id:text}, tips, change, source,
+           science:{ metrics:[{key,label,before,after,helped_by,why}], focus, principle, skin_science, steps:{id:{science,ayurveda}}, note } }
 POST   /api/recommend/beyond  { profile } → { items:[{title, why, ingredients, search:[{retailer,url}],
        products:[{name, kind:'page'|'search', url|links}]}], note, grounded, source }
 POST   /api/guide             { messages:[{role:'user'|'guide', text}], profile } → { reply, products, followups }

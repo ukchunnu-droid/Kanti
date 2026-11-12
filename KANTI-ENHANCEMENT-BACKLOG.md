@@ -87,6 +87,10 @@ Live in `backend/` (not ported to the prototype). Tests: 44 API + 12 e2e checks.
 | A10 | My routine page: checklist, calendar reminders (.ics), skin diary with 30-day chart | ✅ |
 | A11 | Ask Kanti chat (profile- and catalogue-aware, product cards, follow-ups) | ✅ |
 | A12 | Phones: bottom-sheet filters, sticky add-to-bag, compact header | ✅ |
+| A13 | Kanti blossom logo + opening bloom animation | ✅ |
+| A14 | Quiz: "All of the above" + "Other" (own words, read by AI and keyword fallback) on every question | ✅ |
+| A15 | Before/after skin illustration (8-week timeline, drag to compare, skin tones) + comparison chart | ✅ |
+| A16 | "Why this routine works": fixed scientific + Ayurvedic reasons per step (`src/skin-science.js`) | ✅ |
 
 ## Priority next
 

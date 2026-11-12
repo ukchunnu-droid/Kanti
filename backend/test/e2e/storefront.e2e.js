@@ -113,6 +113,12 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     assert.ok(hrefs.length >= 4);
     for (const [h, t, rel] of hrefs) { assert.match(h, /^https:\/\//); assert.equal(t, '_blank'); assert.match(rel, /noopener/); }
     assert.match(await text('.beyond-note'), /Not sold or reviewed by Kanti/);
+    // Before/after illustration + reasons
+    assert.equal(await count('.sim .face'), 2, 'before and after faces');
+    assert.equal(await count('#dbRows .db-row'), 6);
+    assert.ok(await count('.why-step') >= 4, 'a reason for each routine product');
+    await page.evaluate(() => { const r = document.getElementById('simRange'); r.value = 30; r.dispatchEvent(new Event('input', { bubbles: true })); });
+    assert.equal(await page.evaluate(() => state.sim.pos), 30, 'drag to compare');
     await click('button', 'Add full routine to bag');
     await wait(200);
     assert.ok(Number(await text('#cartCount')) >= 5);
@@ -279,6 +285,14 @@ test('storefront journeys', { skip, timeout: 180000 }, async (t) => {
     assert.equal(await page.evaluate(() => state.qStep), 2);
     await click('.resume-note .link-btn', 'Start over');
     assert.equal(await page.evaluate(() => state.qStep), 0);
+    // "Other" needs a few words before Next is enabled
+    await click('.option', 'Other');
+    assert.equal(await page.$eval('#quizNext', (b) => b.disabled), true);
+    await page.type('#otherText', 'shiny T-zone');
+    assert.equal(await page.$eval('#quizNext', (b) => b.disabled), false);
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'otherText', 'typing keeps focus');
+    await click('.option', 'All of the above');
+    assert.equal(await count('#otherText'), 0);
     // Chat
     await page.evaluate(() => go('shop'));
     await page.click('#guideFab');

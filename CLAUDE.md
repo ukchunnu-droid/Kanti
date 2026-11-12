@@ -82,4 +82,7 @@ The real app is **`backend/public/index.html`** (storefront) + **`backend/public
   outside products (`src/links.js` — never show an unchecked AI-written URL), profile chip, compare,
   wishlist, back-in-stock alerts, quiz resume, routine page + reminders + skin diary, Ask Kanti chat,
   phone layouts. Frontend: `js/reco.js`, `js/extras.js`, `js/routine.js`, `js/guide.js`. Not ported to the prototype.
+- **Done (A13–A16):** logo + opening bloom; quiz "All of the above"/"Other"; before/after illustration
+  (`js/skinsim.js`); reasons from `src/skin-science.js` — keep those hand-written (no AI, no invented
+  stats/studies), and add an entry for any new ingredient.
 - **Next:** E6, E7 (seasonal), E9 (reviews), E10; payments deliberately skipped.

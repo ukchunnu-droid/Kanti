@@ -4,7 +4,7 @@
 // local rules in views.js are used, so nothing ever waits on the AI to work.
 // Also: "Beyond Kanti" (outside products with links), bag suggestions and the header profile chip.
 
-const profileKey = (p) => (p ? [p.skin, p.dosha, p.concern || ''].join('|') : '');
+const profileKey = (p) => (p ? [p.skin, p.dosha, p.concern || '', p.note || ''].join('|') : '');
 state.reco = { key: '', data: null, pending: null };
 state.beyond = { key: '', data: null, pending: null, error: null };
 
@@ -14,7 +14,7 @@ function recoNow() {
   return state.profile && r.data && r.key === profileKey(state.profile) ? r.data : null;
 }
 function recoProfile(p) {
-  return { skin: p.skin, dosha: p.dosha, concern: p.concern || null, lookFor: p.lookFor || [], avoid: p.avoid || [] };
+  return { skin: p.skin, dosha: p.dosha, concern: p.concern || null, lookFor: p.lookFor || [], avoid: p.avoid || [], note: p.note || '' };
 }
 // Starts loading recommendations for the current profile (once). Resolves when done.
 function loadReco() {
@@ -22,6 +22,7 @@ function loadReco() {
   const key = profileKey(p), r = state.reco;
   if (r.key === key && (r.data || r.pending)) return r.pending || Promise.resolve(r.data);
   r.key = key; r.data = null;
+  if (state.sim) Object.assign(state.sim, { t: 0, pos: 0, played: false }); // new profile → play the before/after again
   r.pending = API.recommend(recoProfile(p))
     .then((d) => { if (state.reco.key === key) { r.data = d; stashReco(); } return d; })
     .catch(() => null)

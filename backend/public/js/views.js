@@ -2,11 +2,22 @@
 // Classic script: shares globals with the other files; load order is set in index.html.
 /* ---------- Quiz logic ---------- */
 function answer(opt){
-  state.answers[state.qStep]=opt;
+  const prev=state.answers[state.qStep];
+  // Re-picking "Other" keeps what was typed.
+  state.answers[state.qStep]=opt.isOther?{...opt,other:prev&&prev.isOther?prev.other:''}:opt;
   saveQuizProgress();
   renderQuiz();
+  if(opt.isOther){const i=$('#otherText'); if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}}
 }
+// Typing in the "Other" box: update the answer without re-rendering (keeps focus).
+function otherText(v){
+  const a=state.answers[state.qStep]; if(!a||!a.isOther) return;
+  a.other=v.slice(0,120); saveQuizProgress();
+  const next=$('#quizNext'); if(next) next.disabled=!answerReady(a)||!!state.classifying;
+}
+const answerReady=a=>!!a&&(!a.isOther||a.other.trim().length>=2);
 async function nextQ(){
+  if(!answerReady(state.answers[state.qStep])) return;
   if(state.qStep<QUIZ.length-1){state.qStep++;saveQuizProgress();renderQuiz();window.scrollTo({top:0});return;}
   if(state.classifying) return;
   state.classifying='reading'; renderQuiz();
@@ -33,14 +44,17 @@ function prevQ(){if(state.classifying)return;if(state.qStep>0){state.qStep--;sav
 
 // Half-finished quizzes survive a refresh or coming back later (this browser only, for 7 days).
 function saveQuizProgress(){
-  try{localStorage.setItem('kanti_quiz',JSON.stringify({step:state.qStep,answers:state.answers.map(a=>a?a.t:null),at:Date.now()}));}catch(e){}
+  try{localStorage.setItem('kanti_quiz',JSON.stringify({step:state.qStep,answers:state.answers.map(a=>a?{t:a.t,other:a.other||''}:null),at:Date.now()}));}catch(e){}
 }
 function clearQuizProgress(){try{localStorage.removeItem('kanti_quiz');}catch(e){} state.quizResumed=false;}
 function restoreQuizProgress(){
   try{
     const d=JSON.parse(localStorage.getItem('kanti_quiz')||'null');
     if(!d||!Array.isArray(d.answers)||Date.now()-d.at>7*864e5) return false;
-    const answers=d.answers.map((t,i)=>QUIZ[i]&&QUIZ[i].opts.find(o=>o.t===t)).slice(0,QUIZ.length);
+    const answers=d.answers.slice(0,QUIZ.length).map((x,i)=>{
+      const t=x&&typeof x==='object'?x.t:x; const o=quizOptions(i).find(o=>o.t===t);
+      return o?(o.isOther?{...o,other:String(x.other||'').slice(0,120)}:o):null;
+    });
     const firstGap=answers.findIndex(a=>!a);
     const answered=firstGap<0?answers.length:firstGap;
     if(!answered) return false;
@@ -62,6 +76,8 @@ function applyClassification(r){
   p.lookFor=list(r.lookFor); p.avoid=list(r.avoid);
   p.rationale=r.rationale?String(r.rationale):'';
   p.source=r.source==='gemini'?'gemini':'rules';
+  // A goal the AI read from "Other" text fills in only when no goal was picked.
+  if(!p.concern && !p.allGoals && ['breakouts','dryness','dullness','sensitivity','fine lines'].includes(r.concern)) p.concern=r.concern;
   if(r.saved){ // signed in → the server already saved it to quiz history
     session.skin=r.saved; if(session.history) session.history.unshift(r.saved);
   } else if(!API.isAuthed()) p.unsaved=true; // saved after the user signs in
@@ -69,17 +85,34 @@ function applyClassification(r){
 
 function buildProfile(){
   const skinVotes={},doshaVotes={};let concern=null,culture=null,spice=null;
+  const vote=(o,k,w)=>{o[k]=(o[k]||0)+w;};
   state.answers.forEach((a,i)=>{
-    if(a.skin)skinVotes[a.skin]=(skinVotes[a.skin]||0)+(i===0?2:1); // Q1 weighted
-    if(a.dosha)doshaVotes[a.dosha]=(doshaVotes[a.dosha]||0)+1;
-    if(a.doshaHint)doshaVotes[a.doshaHint]=(doshaVotes[a.doshaHint]||0)+0.5; // spice = gentle tiebreaker
+    const w=i===0?2:1; // Q1 weighted
+    if(a.skin)vote(skinVotes,a.skin,w);
+    if(a.dosha)vote(doshaVotes,a.dosha,1);
+    if(a.doshaHint)vote(doshaVotes,a.doshaHint,0.5); // spice = gentle tiebreaker
     if(a.concern)concern=a.concern;
     if(a.culture)culture=a.culture;
     if(a.spice)spice=a.spice;
+    if(a.all){ // "All of the above": mixed skin reads as combination; a vote for every dosha; every goal
+      if(a.dim==='skin')vote(skinVotes,'combination',w);
+      if(a.dim==='dosha')a.doshas.forEach(d=>vote(doshaVotes,d,1/a.doshas.length));
+      if(a.dim==='concern')concern=null;
+    }
+    if(a.isOther&&a.other){
+      if(a.dim==='skin')otherHints('skin',a.other).slice(0,1).forEach(v=>vote(skinVotes,v,w));
+      if(a.dim==='dosha'||a.dim==='skin')otherHints('dosha',a.other).forEach(v=>vote(doshaVotes,v,a.dim==='dosha'?1:0.5));
+      if(a.dim==='concern'){const c=otherHints('concern',a.other)[0]; if(c)concern=c;}
+      if(a.dim==='culture')culture='other';
+      if(a.dim==='spice')spice='other';
+    }
   });
   const skin=Object.keys(skinVotes).sort((a,b)=>skinVotes[b]-skinVotes[a])[0]||'normal';
   const dosha=Object.keys(doshaVotes).sort((a,b)=>doshaVotes[b]-doshaVotes[a])[0]||'vata';
-  state.profile={skin,dosha,concern,culture,spice};
+  const note=state.answers.filter(a=>a&&a.isOther&&a.other.trim()).map(a=>a.other.trim()).join(' · ').slice(0,240);
+  const allGoals=state.answers.some(a=>a&&a.all&&a.dim==='concern');
+  const own=dim=>{const a=state.answers.find(a=>a&&a.isOther&&a.dim===dim);return a?a.other.trim():'';};
+  state.profile={skin,dosha,concern,culture,spice,note,allGoals,cultureText:own('culture'),spiceText:own('spice')};
 }
 
 /* match score: dosha + skin + concern */
@@ -230,23 +263,29 @@ function renderQuiz(){
     <h2 class="q-title">${step.q}</h2>
     <p class="q-sub">${step.sub}</p>
     <div class="options">
-      ${step.opts.map((o,i)=>`
-        <button class="option ${chosen&&chosen.t===o.t?'selected':''}" data-act="answer" data-arg="${i}">
+      ${quizOptions(state.qStep).map((o,i)=>`
+        <button class="option ${o.all?'opt-all':''} ${o.isOther?'opt-other':''} ${chosen&&chosen.t===o.t?'selected':''}" data-act="answer" data-arg="${i}" aria-pressed="${!!(chosen&&chosen.t===o.t)}">
           <span class="mark"></span>
           <span><b>${o.t}</b>${o.s?`<small>${o.s}</small>`:''}</span>
         </button>`).join('')}
+      ${chosen&&chosen.isOther?`<div class="other-box">
+        <label for="otherText">In your own words</label>
+        <input id="otherText" maxlength="120" autocomplete="off" value="${esc(chosen.other)}" data-input="otherText"
+          placeholder="${esc({skin:'e.g. shiny by noon but flaky around my nose',dosha:'e.g. I get red and blotchy in summer',concern:'e.g. dark spots from old acne',culture:'e.g. Carnatic music and temple architecture',spice:'e.g. fennel (saunf)'}[step.dim]||'Tell us a little more')}">
+        <small>Kanti AI reads this to fine-tune your result.</small>
+      </div>`:''}
     </div>
     <div class="quiz-nav">
       <button class="btn btn-ghost" ${state.qStep===0?'data-go="home"':'data-act="prevQ"'} ${state.classifying?'disabled':''}>← Back</button>
-      <button class="btn btn-primary" data-act="nextQ" ${chosen&&!state.classifying?'':'disabled'}>${state.classifying==='building'?'Building your routine…':state.classifying?'Reading your skin…':state.qStep===QUIZ.length-1?'See my routine':'Next'}</button>
+      <button class="btn btn-primary" id="quizNext" data-act="nextQ" ${answerReady(chosen)&&!state.classifying?'':'disabled'}>${state.classifying==='building'?'Building your routine…':state.classifying?'Reading your skin…':state.qStep===QUIZ.length-1?'See my routine':'Next'}</button>
     </div>
   </div>`;
 }
 function SKIN_or_DOSHA(i){return i<2?'Skin type':i<4?'Your dosha':i===4?'Your goal':'A little fun';}
 
 function funFactHTML(prof){
-  const ct=CULTURE_TRAIT[prof.culture]||'your own thing';
-  const sn=SPICE_NOTE[prof.spice]||'you keep your kitchen interesting';
+  const ct=prof.culture==='other'&&prof.cultureText?esc(prof.cultureText):(CULTURE_TRAIT[prof.culture]||'your own thing');
+  const sn=prof.spice==='other'&&prof.spiceText?`you reach for ${esc(prof.spiceText)}`:(SPICE_NOTE[prof.spice]||'you keep your kitchen interesting');
   const df=DOSHA_FUN[prof.dosha];
   return `<div class="funfact">
     <div class="ff-badge">✨ A little about you</div>
@@ -259,7 +298,7 @@ function renderResults(){
   const steps=buildRoutine(prof,state.tod);
   const wk=weeklyStep(prof), weekly=wk?[wk]:[];
   const tot=routineTotal(prof);
-  const concernTxt = prof.concern? ` We’ve prioritised your goal: <b>${esc(prof.concern)}</b>.`:'';
+  const concernTxt = prof.concern? ` We’ve prioritised your goal: <b>${esc(prof.concern)}</b>.`:(prof.allGoals?' We’ve balanced your routine across <b>all your goals</b>.':'');
   const look = prof.lookFor||d.look, avoid = prof.avoid||d.avoid;
   const srcNote = {gemini:'✦ Personalised by Kanti AI from your answers',
                    rules:'Matched by Kanti’s skin rules from your answers',
@@ -289,6 +328,8 @@ function renderResults(){
       <div class="guide-card"><h3>🌿 Look for</h3><div class="chips">${look.map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div></div>
       <div class="guide-card"><h3>⚠️ Go easy on</h3><div class="chips">${avoid.map(x=>`<span class="chip warn">${esc(x)}</span>`).join('')}</div></div>
     </div>
+
+    <div class="rv" style="--d:.36s">${skinSimHTML()}</div>
 
     <div class="rv" style="--d:.42s">
       ${streakHTML(prof)}
@@ -320,6 +361,7 @@ function renderResults(){
   </div>
   ${footerHTML()}`;
   enhanceTips(app);
+  mountSkinSim();
 }
 function streakHTML(prof){
   const am=buildRoutine(prof,'AM'), pm=buildRoutine(prof,'PM');

@@ -25,6 +25,7 @@ const DOSHA = {
 
 /* ---------- Fun-fact content (end-of-quiz personality moment) ---------- */
 const CULTURE_TRAIT = {
+  all:'a little of everything — festivals, yoga, music, crafts and cinema',
   festivals:'bringing everyone together',
   yoga:'a calm, mindful kind of glow',
   arts:'rhythm and a touch of old-soul grace',
@@ -32,6 +33,7 @@ const CULTURE_TRAIT = {
   cinema:'big-hearted, full-of-feeling energy',
 };
 const SPICE_NOTE = {
+  all:'your spice rack has a bit of everything',
   turmeric:'you reach for turmeric — the spice world’s all-rounder',
   chilli:'you like a little heat in life (your skin can take the hint too)',
   ginger:'ginger keeps you warm and on the move',
@@ -83,33 +85,33 @@ function lookupIngredient(text){
 
 /* ---------- Quiz definition ---------- */
 const QUIZ = [
-  {q:'By mid-afternoon, your skin usually feels…', sub:'Tells us your core skin type.',
+  {dim:'skin', q:'By mid-afternoon, your skin usually feels…', sub:'Tells us your core skin type.',
    opts:[
      {t:'Tight, maybe a little flaky', s:'Dry all over', skin:'dry'},
      {t:'Shiny or oily across the whole face', s:'Oily all over', skin:'oily'},
      {t:'Oily on the T-zone, normal-to-dry on cheeks', s:'The classic combination', skin:'combination'},
      {t:'Comfortable and balanced', s:'Lucky you', skin:'normal'},
    ]},
-  {q:'How would you describe your pores?', sub:'Confirms skin type.',
+  {dim:'skin', q:'How would you describe your pores?', sub:'Confirms skin type.',
    opts:[
      {t:'Small, barely visible', s:'', skin:'dry'},
      {t:'Large, especially around the nose', s:'', skin:'oily'},
      {t:'Visible on the T-zone, fine elsewhere', s:'', skin:'combination'},
      {t:'Even and unremarkable', s:'', skin:'normal'},
    ]},
-  {q:'When the weather changes, your skin tends to…', sub:'This points to your dosha — Ayurveda’s read on your skin’s nature.',
+  {dim:'dosha', q:'When the weather changes, your skin tends to…', sub:'This points to your dosha — Ayurveda’s read on your skin’s nature.',
    opts:[
      {t:'Get dry, rough or chapped; you feel the cold', s:'Vata leaning', dosha:'vata'},
      {t:'Flush, get red or break out in the heat', s:'Pitta leaning', dosha:'pitta'},
      {t:'Get oily, congested or look dull & heavy', s:'Kapha leaning', dosha:'kapha'},
    ]},
-  {q:'Which best describes you overall?', sub:'Doshas describe the whole person, not just skin.',
+  {dim:'dosha', q:'Which best describes you overall?', sub:'Doshas describe the whole person, not just skin.',
    opts:[
      {t:'Light, quick, often cold, changeable energy', s:'Vata', dosha:'vata'},
      {t:'Medium build, warm, intense, driven', s:'Pitta', dosha:'pitta'},
      {t:'Solid, steady, calm, slow to change', s:'Kapha', dosha:'kapha'},
    ]},
-  {q:'What’s your main skin goal right now?', sub:'We’ll prioritise this in your routine.',
+  {dim:'concern', q:'What’s your main skin goal right now?', sub:'We’ll prioritise this in your routine.',
    opts:[
      {t:'Clear up breakouts', s:'', concern:'breakouts'},
      {t:'More hydration', s:'', concern:'dryness'},
@@ -117,7 +119,7 @@ const QUIZ = [
      {t:'Calm redness & sensitivity', s:'', concern:'sensitivity'},
      {t:'Soften early fine lines', s:'', concern:'fine lines'},
    ]},
-  {q:'Which part of Indian culture do you love most?', sub:'Just for fun — it helps us get to know you.',
+  {dim:'culture', q:'Which part of Indian culture do you love most?', sub:'Just for fun — it helps us get to know you.',
    opts:[
      {t:'Festivals & food', s:'The one who brings everyone together', culture:'festivals'},
      {t:'Yoga & wellness', s:'Calm and mindful', culture:'yoga'},
@@ -125,7 +127,7 @@ const QUIZ = [
      {t:'Textiles & handicrafts', s:'An eye for colour and detail', culture:'crafts'},
      {t:'Cinema & Bollywood', s:'Big-hearted (and a little dramatic)', culture:'cinema'},
    ]},
-  {q:'Which spice do you reach for most, day to day?', sub:'In Ayurveda, what warms or cools you can hint at your dosha.',
+  {dim:'spice', q:'Which spice do you reach for most, day to day?', sub:'In Ayurveda, what warms or cools you can hint at your dosha.',
    opts:[
      {t:'Turmeric (haldi)', s:'The all-rounder', spice:'turmeric'},
      {t:'Chilli', s:'You like a little heat', spice:'chilli', doshaHint:'pitta'},
@@ -134,3 +136,24 @@ const QUIZ = [
      {t:'Cardamom (elaichi)', s:'Cool and aromatic', spice:'cardamom'},
    ]},
 ];
+
+/* Every question also offers "All of the above" and "Other" (your own words).
+   "All" carries every option's values; "Other" carries the typed text (read by the AI, and by
+   simple keywords when the AI isn't available). */
+const ALL_T='All of the above', OTHER_T='Other';
+function quizOptions(i){
+  const q=QUIZ[i]; if(!q) return [];
+  const pick=k=>[...new Set(q.opts.map(o=>o[k]).filter(Boolean))];
+  const all={t:ALL_T,s:{skin:'A bit of everything',dosha:'A mix of all three',concern:'I’d like help with all of these',culture:'I love it all',spice:'A bit of everything'}[q.dim]||'',
+    all:true,dim:q.dim,skins:pick('skin'),doshas:pick('dosha'),concerns:pick('concern')};
+  if(q.dim==='culture') all.culture='all';
+  if(q.dim==='spice') all.spice='all';
+  return [...q.opts.map(o=>({...o,dim:q.dim})),all,{t:OTHER_T,s:'Describe it in your own words',other:'',dim:q.dim,isOther:true}];
+}
+// Plain keywords for "Other" answers (mirrors the server's fallback; the AI reads the full text).
+const OTHER_KEYWORDS={
+  skin:[['oily',/oil|greas|shin|slick|sweaty/],['dry',/dry|flak|tight|rough|dehydrat|peel|itch/],['combination',/t-?zone|combo|combination|both|mixed/],['normal',/normal|balanced|comfortable|fine/]],
+  dosha:[['pitta',/hot|heat|warm|red|flush|sensitiv|burn|rash|irritat|intense|sweat|inflam/],['vata',/cold|dry|anxi|thin|restless|rough|crack|chap|wind/],['kapha',/oily|heavy|dull|congest|puff|slow|steady|sluggish|calm/]],
+  concern:[['breakouts',/acne|pimple|break ?out|spot|blemish|zit|blackhead/],['dryness',/dry|flak|hydrat|tight|moistur/],['dullness',/dull|glow|bright|tired|uneven|pigment|dark|tan|radian/],['sensitivity',/red|sensitiv|irritat|itch|rosacea|calm|react/],['fine lines',/line|wrinkl|aging|ageing|firm|sag/]],
+};
+const otherHints=(dim,text)=>(OTHER_KEYWORDS[dim]||[]).filter(([,re])=>re.test(String(text||'').toLowerCase())).map(([v])=>v);

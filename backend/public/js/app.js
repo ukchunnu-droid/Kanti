@@ -13,14 +13,14 @@ const ACTIONS = {
   openModal: (id) => openModal(id),
   flip: (_a, _b, el) => el.classList.toggle('flipped'),
   // quiz & routine
-  answer: (i) => answer(QUIZ[state.qStep].opts[Number(i)]),
+  answer: (i) => { const o = quizOptions(state.qStep)[Number(i)]; if (o) answer(o); }, otherText,
   nextQ, prevQ, addWholeRoutine, viewSavedRoutine, shareResult, downloadShare, copyShareText,
   setTod: (v) => { state.tod = v === 'PM' ? 'PM' : 'AM'; renderResults(); },
   toggleStep: (tod, idx) => toggleStep(tod, Number(idx)),
   // bag
   addToCart: (id) => addToCart(id), removeLine: (id) => removeLine(id),
   changeQty: (id, d) => changeQty(id, Number(d)),
-  restartQuiz, retryBeyond, addFromBag,
+  restartQuiz, retryBeyond, addFromBag, simPlay, simSlide, simTone,
   // shop, saved, compare, alerts
   shopFilter, shopSearch, shopSort, clearShopFilters, openFilters, closeFilters,
   toggleWish, moveWishToBag, compareWish, toggleCompare, clearCompare, notifyMe, notifySubmit: (id) => notifySubmit(id),
