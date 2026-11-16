@@ -76,7 +76,7 @@ function quizResult(b) {
   return {
     result: {
       skinType: b.skinType, dosha: b.dosha,
-      concern: text(b.concern, 60) || null, culture: text(b.culture, 30) || null, spice: text(b.spice, 30) || null,
+      concern: text(b.concern, 60) || null, culture: text(b.culture, 80) || null, spice: text(b.spice, 30) || null,
       lookFor: strList(b.lookFor, 8, 60), avoid: strList(b.avoid, 8, 60),
       rationale: text(b.rationale, 600) || null,
       source: ['gemini', 'rules', 'offline'].includes(b.source) ? b.source : 'rules',

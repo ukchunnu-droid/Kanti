@@ -38,13 +38,14 @@ function faceSVG(id, tone) {
     <filter id="${id}b" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4"/></filter>
     <filter id="${id}s" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.6"/></filter>
     <radialGradient id="${id}g"><stop offset="0" stop-color="#FFD98A" stop-opacity=".7"/><stop offset="1" stop-color="#FFD98A" stop-opacity="0"/></radialGradient>
-    <clipPath id="${id}c"><ellipse cx="120" cy="124" rx="63" ry="80"/></clipPath>
+    <clipPath id="${id}c"><path d="M54,120 C54,62 84,40 120,40 C156,40 186,62 186,120 C186,160 170,188 148,203 C137,210 128,214 120,214 C112,214 103,210 92,203 C70,188 54,160 54,120Z"/></clipPath>
   </defs>
-  <ellipse cx="120" cy="112" rx="84" ry="94" fill="#2B1D16"/>
-  <path d="M84,196 h72 v40 c26,6 46,14 56,24 H28 c10,-10 30,-18 56,-24z" fill="${c.base}"/>
-  <path d="M96,196 h48 v22 c-16,8 -32,8 -48,0z" fill="${c.shade}" opacity=".55"/>
-  <ellipse cx="57" cy="132" rx="8" ry="13" fill="${c.shade}"/><ellipse cx="183" cy="132" rx="8" ry="13" fill="${c.shade}"/>
-  <ellipse cx="120" cy="124" rx="63" ry="80" fill="${c.base}"/>
+  <!-- Proportions: hair frames the face; the neck sits inside the jawline and is drawn behind the face. -->
+  <path d="M40,118 C40,44 78,18 120,18 C162,18 200,44 200,118 L204,214 C196,226 182,230 170,226 L166,150 L74,150 L70,226 C58,230 44,226 36,214Z" fill="#2B1D16"/>
+  <path d="M100,176 L140,176 L142,218 C162,224 194,232 210,246 L214,260 L26,260 L30,246 C46,232 78,224 98,218Z" fill="${c.base}"/>
+  <path d="M100,186 L140,186 L140,206 C127,214 113,214 100,206Z" fill="${c.shade}" opacity=".6"/>
+  <ellipse cx="52" cy="128" rx="8" ry="14" fill="${c.shade}"/><ellipse cx="188" cy="128" rx="8" ry="14" fill="${c.shade}"/>
+  <path d="M54,120 C54,62 84,40 120,40 C156,40 186,62 186,120 C186,160 170,188 148,203 C137,210 128,214 120,214 C112,214 103,210 92,203 C70,188 54,160 54,120Z" fill="${c.base}"/>
   <g clip-path="url(#${id}c)">
     <g class="f-dull"><rect x="40" y="40" width="160" height="170" fill="#8C8A86" style="mix-blend-mode:multiply"/></g>
     <g class="f-red" filter="url(#${id}b)" style="mix-blend-mode:multiply">
@@ -69,7 +70,7 @@ function faceSVG(id, tone) {
       <path d="M103,160 q-6,10 -2,22"/><path d="M137,160 q6,10 2,22"/>
     </g>
   </g>
-  <path d="M57,118 C52,52 188,52 183,118 C172,84 146,68 120,68 C94,68 68,84 57,118Z" fill="#2B1D16"/>
+  <path d="M50,124 C42,8 198,8 190,124 C180,88 152,64 120,64 C88,64 60,88 50,124Z" fill="#2B1D16"/>
   <g fill="none" stroke="#2B1D16" stroke-linecap="round">
     <path d="M86,110 q14,-7 28,-2" stroke-width="3"/><path d="M126,108 q14,-5 28,2" stroke-width="3"/>
     <path d="M89,124 q11,7 22,0" stroke-width="2.2"/><path d="M129,124 q11,7 22,0" stroke-width="2.2"/>

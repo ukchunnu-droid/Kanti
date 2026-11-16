@@ -2,7 +2,7 @@
 // Classic script: shares globals with the other files; load order is set in index.html.
 /* ---------- Share your result ---------- */
 function funFactText(prof){
-  const ct=prof.culture==='other'&&prof.cultureText?prof.cultureText:(CULTURE_TRAIT[prof.culture]||'your own thing');
+  const ct=cultureTraits(prof);
   const sn=prof.spice==='other'&&prof.spiceText?`you reach for ${prof.spiceText}`:(SPICE_NOTE[prof.spice]||'you keep your kitchen interesting');
   return `Drawn to ${ct}, and ${sn}.`;
 }

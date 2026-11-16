@@ -1,5 +1,5 @@
 // Kanti storefront — guide.js
-// "Ask Kanti": a small chat panel. Answers come from POST /api/guide (Gemini with the shopper's skin
+// "Ask Amu": Kanti's chat guide — Amu the peacock (India's national bird; "Amu" is Uma backwards). Answers come from POST /api/guide (Gemini with the shopper's skin
 // profile and the live catalogue, or rules when the AI isn't available). Kept for this tab only.
 
 state.guide = (() => {
@@ -25,11 +25,11 @@ function renderGuide() {
   const last = g.msgs[g.msgs.length - 1];
   const chips = !g.busy ? (g.msgs.length ? ((last && last.followups) || []) : guideStarters()) : [];
   panel.innerHTML = `
-    <div class="gp-head"><div class="gp-id"><svg class="gp-avatar lg" aria-hidden="true"><use href="#kanti-mark"/></svg><div><b>Ask Kanti</b><small>${guideProfile() ? `Knows your ${esc(DOSHA[guideProfile().dosha].name)} · ${esc(SKIN_LABEL[guideProfile().skin].toLowerCase())} profile` : 'Ayurvedic skincare guide'}</small></div></div>
+    <div class="gp-head"><div class="gp-id"><svg class="gp-avatar lg" aria-hidden="true"><use href="#amu-mark"/></svg><div><b>Ask Amu</b><small>${guideProfile() ? `Knows your ${esc(DOSHA[guideProfile().dosha].name)} · ${esc(SKIN_LABEL[guideProfile().skin].toLowerCase())} profile` : 'Kanti’s peacock skincare guide'}</small></div></div>
       <div>${g.msgs.length ? '<button class="link-btn" data-act="guideClear">Clear</button>' : ''}<button class="icon-btn" data-act="guideToggle" aria-label="Close">✕</button></div></div>
     <div class="gp-body" id="guideBody" aria-live="polite">
-      ${g.msgs.length ? '' : `<div class="gp-msg guide"><svg class="gp-avatar" aria-hidden="true"><use href="#kanti-mark"/></svg><p>Namaste 🌿 Ask me about ingredients, your dosha, or which Kanti products suit you.</p></div>`}
-      ${g.msgs.map((m) => `<div class="gp-msg ${m.role}">${m.role === 'guide' ? '<svg class="gp-avatar" aria-hidden="true"><use href="#kanti-mark"/></svg>' : ''}<p>${esc(m.text).replace(/\n/g, '<br>')}</p>
+      ${g.msgs.length ? '' : `<div class="gp-msg guide"><svg class="gp-avatar" aria-hidden="true"><use href="#amu-mark"/></svg><p>Namaste 🦚 I’m Amu, Kanti’s peacock guide. Ask me about ingredients, your dosha, or which products suit you.</p></div>`}
+      ${g.msgs.map((m) => `<div class="gp-msg ${m.role}">${m.role === 'guide' ? '<svg class="gp-avatar" aria-hidden="true"><use href="#amu-mark"/></svg>' : ''}<p>${esc(m.text).replace(/\n/g, '<br>')}</p>
         ${(m.products || []).filter((id) => prod(id)).map((id) => { const p = prod(id); return `<div class="gp-prod">
           <span class="thumb sm" style="background:${esc(p.bg)}">${productArt(p, 'thumb')}</span>
           <span><b>${esc(p.name)}</b><small>${money(p.price)}</small></span>
@@ -38,7 +38,7 @@ function renderGuide() {
         ${m.needs_quiz ? `<div class="gp-quiz"><button class="btn btn-gold btn-sm" data-act="guideTakeQuiz">Take the 2-minute quiz</button><small>Then ask me again — I’ll check what suits you.</small></div>` : ''}
         ${m.outside ? guideOutsideHTML(m.outside) : ''}
       </div>`).join('')}
-      ${g.busy ? '<div class="gp-msg guide"><svg class="gp-avatar" aria-hidden="true"><use href="#kanti-mark"/></svg><div class="typing"><span></span><span></span><span></span></div></div>' : ''}
+      ${g.busy ? '<div class="gp-msg guide"><svg class="gp-avatar" aria-hidden="true"><use href="#amu-mark"/></svg><div class="typing"><span></span><span></span><span></span></div></div>' : ''}
     </div>
     ${chips.length ? `<div class="gp-chips">${chips.map((c) => `<button class="pill" data-act="guideAsk" data-arg="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
     <form class="gp-form" data-submit="guideSend" novalidate>
@@ -89,3 +89,19 @@ function guideOutsideHTML(o) {
 }
 
 function guideClear() { state.guide.msgs = []; stashGuide(); renderGuide(); }
+
+// First visit: Amu says hello once, so people know there's someone to ask.
+function amuHello() {
+  try { if (localStorage.getItem('kanti_amu_hi')) return; localStorage.setItem('kanti_amu_hi', '1'); } catch (e) { return; }
+  setTimeout(() => {
+    if (state.guide.open || document.getElementById('amuHello')) return;
+    const b = document.createElement('div');
+    b.id = 'amuHello'; b.className = 'amu-hello'; b.setAttribute('role', 'status');
+    b.innerHTML = `<button class="amu-hello-open" data-act="amuHelloOpen"><b>Hi, I’m Amu 🦚</b><span>Ask me anything about your skin or your dosha.</span></button>
+      <button class="amu-hello-x" data-act="amuHelloClose" aria-label="Dismiss">✕</button>`;
+    document.body.appendChild(b);
+    setTimeout(amuHelloClose, 12000);
+  }, 3500);
+}
+function amuHelloClose() { const b = document.getElementById('amuHello'); if (b) b.remove(); }
+function amuHelloOpen() { amuHelloClose(); if (!state.guide.open) guideToggle(); }

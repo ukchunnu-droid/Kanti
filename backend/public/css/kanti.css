@@ -1180,3 +1180,19 @@ body.splashing .hero-eyebrow,body.splashing .hero h1,body.splashing .hero p,body
   .story-block{grid-template-columns:1fr;gap:6px}
 }
 @media (max-width:1000px){.nav-links{gap:16px}}
+
+/* Multi-answer questions: square checkboxes instead of round radio marks */
+.options.multi .option .mark{border-radius:6px}
+.options.multi .option.selected .mark::after{content:"✓";color:#FAF8F3;font-size:14px;font-weight:700;line-height:1;width:auto;height:auto;background:none;border-radius:0}
+.multi-hint{font-size:13.5px;font-weight:600;color:var(--green-2);margin:-8px 0 14px}
+
+/* Amu says hello (first visit) */
+.amu-hello{position:fixed;right:20px;bottom:80px;z-index:72;display:flex;align-items:flex-start;gap:4px;max-width:260px;background:var(--surface);border:1px solid var(--line);border-radius:16px 16px 4px 16px;box-shadow:0 14px 40px rgba(0,0,0,.2);padding:4px 4px 4px 0;animation:amu-in .35s ease}
+@keyframes amu-in{from{opacity:0;transform:translateY(8px) scale(.97)}}
+.amu-hello-open{text-align:left;padding:10px 4px 10px 14px;color:var(--ink)}
+.amu-hello-open b{display:block;font-size:14.5px}
+.amu-hello-open span{display:block;font-size:13px;color:var(--muted);line-height:1.4;margin-top:2px}
+.amu-hello-x{width:26px;height:26px;border-radius:50%;color:var(--muted);font-size:12px;flex:none}
+body.has-compare .amu-hello{bottom:144px}
+@media (prefers-reduced-motion:reduce){.amu-hello{animation:none}}
+@media (max-width:720px){.amu-hello{right:16px;bottom:72px}}

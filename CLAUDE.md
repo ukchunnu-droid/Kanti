@@ -90,4 +90,7 @@ The real app is **`backend/public/index.html`** (storefront) + **`backend/public
   skin journey, reviews, profile photo + EN/HI, analytics, support inbox. Server: `src/store.js`,
   `auth.js`, `live.js`, `notify.js`, `routes-extra.js`. Frontend: `js/session.js`, `live.js`, `daily.js`,
   `profile.js`, `reviews.js`, `analytics.js`, `support.js`, `public/sw.js`. E2E waits use networkidle2 (SSE stays open).
+- **Done (F1–F3, prof feedback 2026-11-16):** multi-answer culture question (`multiAnswer()` in data.js), face redrawn
+  in `js/skinsim.js`, chatbot is **Amu the peacock** (`#amu-mark` symbol, "Ask Amu"). Research + roadmap in
+  `deliverables/Quiz-research-and-roadmap.md`. Live: https://kanti-skincare.netlify.app (Netlify → Render).
 - **Next:** Google/Apple sign-in (needs OAuth credentials / Apple Developer account), E10; payments deliberately skipped.

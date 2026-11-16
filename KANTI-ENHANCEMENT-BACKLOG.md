@@ -108,6 +108,10 @@ Live in `backend/` (not ported to the prototype). Tests: 44 API + 12 e2e checks.
 | C13 | Analytics dashboard: funnel, top searches, wanted-but-not-sold | ✅ |
 | C14 | Support inbox: contact form, tickets tied to orders, email replies, guest private links | ✅ |
 | C15 | “Our story” founder page (/#about) + “Meet the founder” on the home page | ✅ |
+| F1 | Professor feedback: culture question is multi-answer ("pick all that apply") | ✅ |
+| F2 | Professor feedback: before/after face redrawn — face fills the hair, neck inside the jaw | ✅ |
+| F3 | Professor feedback: chatbot persona **Amu the peacock** (Uma backwards; India's national bird) | ✅ |
+| F4 | Roadmap: optional deeper "Refine my routine" quiz for customers after 2–3 weeks (see deliverables/Quiz-research-and-roadmap.md) | ⬜ future |
 
 ## Priority next
 

@@ -3,6 +3,16 @@
 /* ---------- Quiz logic ---------- */
 function answer(opt){
   const prev=state.answers[state.qStep];
+  if(QUIZ[state.qStep].multi){ // pick as many as you like
+    const opts=quizOptions(state.qStep), regular=opts.filter(o=>!o.all&&!o.isOther).map(o=>o.t);
+    let picks=prev&&prev.multi?[...prev.picks]:[];
+    if(opt.all) picks=regular.every(t=>picks.includes(t))?picks.filter(t=>!regular.includes(t)):[...new Set([...picks,...regular])];
+    else picks=picks.includes(opt.t)?picks.filter(t=>t!==opt.t):[...picks,opt.t];
+    state.answers[state.qStep]=multiAnswer(state.qStep,picks,prev&&prev.other);
+    saveQuizProgress(); renderQuiz();
+    if(opt.isOther&&picks.includes(opt.t)){const i=$('#otherText'); if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}}
+    return;
+  }
   // Re-picking "Other" keeps what was typed.
   state.answers[state.qStep]=opt.isOther?{...opt,other:prev&&prev.isOther?prev.other:''}:opt;
   saveQuizProgress();
@@ -11,11 +21,13 @@ function answer(opt){
 }
 // Typing in the "Other" box: update the answer without re-rendering (keeps focus).
 function otherText(v){
-  const a=state.answers[state.qStep]; if(!a||!a.isOther) return;
-  a.other=v.slice(0,120); saveQuizProgress();
+  let a=state.answers[state.qStep]; if(!a||!(a.isOther||a.multi)) return;
+  if(a.multi){ a=state.answers[state.qStep]=multiAnswer(state.qStep,a.picks,v); }
+  else a.other=v.slice(0,120);
+  saveQuizProgress();
   const next=$('#quizNext'); if(next) next.disabled=!answerReady(a)||!!state.classifying;
 }
-const answerReady=a=>!!a&&(!a.isOther||a.other.trim().length>=2);
+const answerReady=a=>!!a&&(a.multi?a.picks.length>0&&(!a.picks.includes(OTHER_T)||a.other.trim().length>=2):(!a.isOther||a.other.trim().length>=2));
 async function nextQ(){
   if(!answerReady(state.answers[state.qStep])) return;
   if(state.qStep<QUIZ.length-1){state.qStep++;saveQuizProgress();renderQuiz();window.scrollTo({top:0});return;}
@@ -45,7 +57,7 @@ function prevQ(){if(state.classifying)return;if(state.qStep>0){state.qStep--;sav
 
 // Half-finished quizzes survive a refresh or coming back later (this browser only, for 7 days).
 function saveQuizProgress(){
-  try{localStorage.setItem('kanti_quiz',JSON.stringify({step:state.qStep,answers:state.answers.map(a=>a?{t:a.t,other:a.other||''}:null),at:Date.now()}));}catch(e){}
+  try{localStorage.setItem('kanti_quiz',JSON.stringify({step:state.qStep,answers:state.answers.map(a=>a?{t:a.t,other:a.other||'',picks:a.multi?a.picks:undefined}:null),at:Date.now()}));}catch(e){}
 }
 function clearQuizProgress(){try{localStorage.removeItem('kanti_quiz');}catch(e){} state.quizResumed=false;}
 function restoreQuizProgress(){
@@ -53,6 +65,7 @@ function restoreQuizProgress(){
     const d=JSON.parse(localStorage.getItem('kanti_quiz')||'null');
     if(!d||!Array.isArray(d.answers)||Date.now()-d.at>7*864e5) return false;
     const answers=d.answers.slice(0,QUIZ.length).map((x,i)=>{
+      if(QUIZ[i]&&QUIZ[i].multi&&x&&Array.isArray(x.picks)) return x.picks.length?multiAnswer(i,x.picks,x.other):null;
       const t=x&&typeof x==='object'?x.t:x; const o=quizOptions(i).find(o=>o.t===t);
       return o?(o.isOther?{...o,other:String(x.other||'').slice(0,120)}:o):null;
     });
@@ -110,9 +123,9 @@ function buildProfile(){
   });
   const skin=Object.keys(skinVotes).sort((a,b)=>skinVotes[b]-skinVotes[a])[0]||'normal';
   const dosha=Object.keys(doshaVotes).sort((a,b)=>doshaVotes[b]-doshaVotes[a])[0]||'vata';
-  const note=state.answers.filter(a=>a&&a.isOther&&a.other.trim()).map(a=>a.other.trim()).join(' · ').slice(0,240);
+  const note=state.answers.filter(a=>a&&a.isOther&&a.other.trim()&&a.dim!=='culture').map(a=>a.other.trim()).join(' · ').slice(0,240);
   const allGoals=state.answers.some(a=>a&&a.all&&a.dim==='concern');
-  const own=dim=>{const a=state.answers.find(a=>a&&a.isOther&&a.dim===dim);return a?a.other.trim():'';};
+  const own=dim=>{const a=state.answers.find(a=>a&&(a.isOther||a.multi)&&a.dim===dim&&a.other);return a?a.other.trim():'';};
   state.profile={skin,dosha,concern,culture,spice,note,allGoals,cultureText:own('culture'),spiceText:own('spice')};
 }
 
@@ -272,13 +285,19 @@ function renderQuiz(){
     ${state.quizResumed&&!state.classifying?`<div class="resume-note">↺ Picked up where you left off. <button class="link-btn" data-act="restartQuiz">Start over</button></div>`:''}
     <h2 class="q-title">${step.q}</h2>
     <p class="q-sub">${step.sub}</p>
-    <div class="options">
-      ${quizOptions(state.qStep).map((o,i)=>`
-        <button class="option ${o.all?'opt-all':''} ${o.isOther?'opt-other':''} ${chosen&&chosen.t===o.t?'selected':''}" data-act="answer" data-arg="${i}" aria-pressed="${!!(chosen&&chosen.t===o.t)}">
+    ${step.multi?`<p class="multi-hint">✓ Choose all that apply${chosen&&chosen.multi&&chosen.picks.length?` · ${chosen.picks.length} selected`:''}</p>`:''}
+    <div class="options ${step.multi?'multi':''}" ${step.multi?'role="group" aria-label="Choose all that apply"':''}>
+      ${quizOptions(state.qStep).map((o,i)=>{
+        const opts=quizOptions(state.qStep);
+        const on=step.multi
+          ? !!(chosen&&chosen.multi&&(o.all?opts.filter(x=>!x.all&&!x.isOther).every(x=>chosen.picks.includes(x.t)):chosen.picks.includes(o.t)))
+          : !!(chosen&&chosen.t===o.t);
+        return `
+        <button class="option ${o.all?'opt-all':''} ${o.isOther?'opt-other':''} ${on?'selected':''}" data-act="answer" data-arg="${i}" aria-pressed="${on}">
           <span class="mark"></span>
           <span><b>${o.t}</b>${o.s?`<small>${o.s}</small>`:''}</span>
-        </button>`).join('')}
-      ${chosen&&chosen.isOther?`<div class="other-box">
+        </button>`;}).join('')}
+      ${chosen&&(chosen.isOther||(chosen.multi&&chosen.picks.includes(OTHER_T)))?`<div class="other-box">
         <label for="otherText">In your own words</label>
         <input id="otherText" maxlength="120" autocomplete="off" value="${esc(chosen.other)}" data-input="otherText"
           placeholder="${esc({skin:'e.g. shiny by noon but flaky around my nose',dosha:'e.g. I get red and blotchy in summer',concern:'e.g. dark spots from old acne',culture:'e.g. Carnatic music and temple architecture',spice:'e.g. fennel (saunf)'}[step.dim]||'Tell us a little more')}">
@@ -294,7 +313,7 @@ function renderQuiz(){
 function SKIN_or_DOSHA(i){return i<2?'Skin type':i<4?'Your dosha':i===4?'Your goal':'A little fun';}
 
 function funFactHTML(prof){
-  const ct=prof.culture==='other'&&prof.cultureText?esc(prof.cultureText):(CULTURE_TRAIT[prof.culture]||'your own thing');
+  const ct=esc(cultureTraits(prof));
   const sn=prof.spice==='other'&&prof.spiceText?`you reach for ${esc(prof.spiceText)}`:(SPICE_NOTE[prof.spice]||'you keep your kitchen interesting');
   const df=DOSHA_FUN[prof.dosha];
   return `<div class="funfact">

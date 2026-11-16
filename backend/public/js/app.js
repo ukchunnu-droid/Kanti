@@ -27,7 +27,7 @@ const ACTIONS = {
   // routine page, diary, reminders
   setReminder, downloadReminders, diaryRate, diaryTag, diaryNote, diarySave, diarySignIn,
   // Ask Kanti
-  guideToggle, guideSend, guideClear, guideTakeQuiz, guideAsk: (t) => guideAsk(t),
+  guideToggle, guideSend, guideClear, guideTakeQuiz, amuHelloOpen, amuHelloClose, guideAsk: (t) => guideAsk(t),
   // auth, checkout, account
   submitAuth: (view) => submitAuth(view), placeOrder, saveProfileEdits, changePassword, deleteAccount, signOut,
   fmtCard: (_v, _b, el) => fmtCard(el), fmtExp: (_v, _b, el) => fmtExp(el),
@@ -124,5 +124,6 @@ function hideSplash(now) {
   }
   go(viewFromHash());
   hideSplash();
+  amuHello();
   window.addEventListener('hashchange',()=>{const v=viewFromHash(); if(v!==state.view) go(v);});
 })();

@@ -119,7 +119,7 @@ const QUIZ = [
      {t:'Calm redness & sensitivity', s:'', concern:'sensitivity'},
      {t:'Soften early fine lines', s:'', concern:'fine lines'},
    ]},
-  {dim:'culture', q:'Which part of Indian culture do you love most?', sub:'Just for fun — it helps us get to know you.',
+  {dim:'culture', multi:true, q:'Which parts of Indian culture do you love?', sub:'Pick as many as you like — just for fun, it doesn’t change your skin result.',
    opts:[
      {t:'Festivals & food', s:'The one who brings everyone together', culture:'festivals'},
      {t:'Yoga & wellness', s:'Calm and mindful', culture:'yoga'},
@@ -157,3 +157,22 @@ const OTHER_KEYWORDS={
   concern:[['breakouts',/acne|pimple|break ?out|spot|blemish|zit|blackhead/],['dryness',/dry|flak|hydrat|tight|moistur/],['dullness',/dull|glow|bright|tired|uneven|pigment|dark|tan|radian/],['sensitivity',/red|sensitiv|irritat|itch|rosacea|calm|react/],['fine lines',/line|wrinkl|aging|ageing|firm|sag/]],
 };
 const otherHints=(dim,text)=>(OTHER_KEYWORDS[dim]||[]).filter(([,re])=>re.test(String(text||'').toLowerCase())).map(([v])=>v);
+
+/* Multi-answer questions (culture): the answer keeps every pick. "All of the above" ticks every
+   option; "Other" adds your own words. culture = the picked keys joined with commas. */
+function multiAnswer(i, picks, other){
+  const q=QUIZ[i], opts=quizOptions(i);
+  const chosen=opts.filter(o=>!o.all&&picks.includes(o.t));
+  const keys=chosen.filter(o=>!o.isOther).map(o=>o[q.dim]).filter(Boolean);
+  const hasOther=chosen.some(o=>o.isOther);
+  if(hasOther) keys.push('other');
+  return {multi:true, dim:q.dim, picks:chosen.map(o=>o.t), other:hasOther?String(other||'').slice(0,120):'',
+    t:chosen.map(o=>o.isOther?(other||OTHER_T):o.t).join(' + ').slice(0,120), [q.dim]:keys.join(',')||null};
+}
+// "Festivals & food, Yoga & wellness" → "bringing everyone together and a calm, mindful kind of glow"
+function cultureTraits(prof){
+  const keys=String(prof.culture||'').split(',').filter(Boolean);
+  const list=keys.map(k=>k==='other'?(prof.cultureText||''):CULTURE_TRAIT[k]).filter(Boolean);
+  if(!list.length) return 'your own thing';
+  return list.length===1?list[0]:list.slice(0,-1).join(', ')+' and '+list[list.length-1];
+}

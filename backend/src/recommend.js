@@ -2,7 +2,7 @@
 //   recommend() — an AM/PM routine of Kanti products with a "why" for each, add-ons, products to skip, tips.
 //   beyond()    — outside product types worth knowing about, with retailer search links and (when they
 //                 can be verified) real product pages.
-//   guide()     — the "Ask Kanti" chat.
+//   guide()     — the "Ask Amu" chat (Amu the peacock).
 // Each uses Gemini when GEMINI_API_KEY is set and falls back to rules, so they always answer.
 // AI output is never trusted blindly: product ids are checked against the database, text is capped,
 // and outside links are only shown after links.js has checked them.
@@ -458,7 +458,7 @@ Return ONLY JSON: {"skincare": true, "kanti": [{"id": "", "why": ""}], "items": 
   return { ...out, key };
 }
 
-// ---------- Ask Kanti (chat) ----------
+// ---------- Ask Amu (chat) ----------
 function cleanMessages(list) {
   return (Array.isArray(list) ? list : []).slice(-12)
     .filter((m) => m && (m.role === 'user' || m.role === 'guide') && typeof m.text === 'string')
@@ -494,7 +494,8 @@ async function guide(rawMessages, rawProfile) {
   const products = db.listProducts();
   const byId = new Set(products.map((p) => p.id));
   if (hasKey()) {
-    const prompt = `You are "Kanti Guide", a warm Ayurvedic skincare advisor for the Kanti store.
+    const prompt = `You are "Amu", Kanti's friendly peacock guide (the peacock is India's national bird) — a warm Ayurvedic
+skincare advisor for the Kanti store. Speak in first person as Amu, light and kind, but never silly about health.
 ${prof ? `The person: ${profileText(prof)}.` : 'The person has not taken the skin quiz yet; you can suggest it.'}
 
 Kanti products (id | name | category | benefit | ingredients | stock):
@@ -510,7 +511,7 @@ Rules:
   The app then shows outside listings with a fit check, so keep "reply" to one or two sentences introducing them.
 
 Conversation (oldest first):
-${messages.map((m) => `${m.role === 'user' ? 'Person' : 'Kanti Guide'}: ${m.text}`).join('\n')}
+${messages.map((m) => `${m.role === 'user' ? 'Person' : 'Amu'}: ${m.text}`).join('\n')}
 
 Return ONLY JSON: {"reply": "...", "products": ["id"], "followups": ["up to 3 short follow-up questions the person might ask"], "outside_query": null}`;
     try {
